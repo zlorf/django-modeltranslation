@@ -63,7 +63,7 @@ explains how things are working under the hood.
 Changes Automatically Applied to the Model Class
 ------------------------------------------------
 
-After registering the ``News`` model for translation an SQL dump of the
+After registering the ``News`` model for translation a SQL dump of the
 news app will look like this:
 
 .. code-block:: console
@@ -73,25 +73,27 @@ news app will look like this:
     CREATE TABLE `news_news` (
         `id` integer AUTO_INCREMENT NOT NULL PRIMARY KEY,
         `title` varchar(255) NOT NULL,
-        `title_de` varchar(255) NULL,
         `title_en` varchar(255) NULL,
         `text` longtext NULL,
-        `text_de` longtext NULL,
         `text_en` longtext NULL,
     )
     ;
-    ALTER TABLE `news_news` ADD CONSTRAINT page_id_refs_id_3edd1f0d FOREIGN KEY (`page_id`) REFERENCES `page_page` (`id`);
-    CREATE INDEX `news_news_page_id` ON `news_news` (`page_id`);
     COMMIT;
 
-Note the ``title_de``, ``title_en``, ``text_de`` and ``text_en`` fields which
-are not declared in the original News model class but rather have been added by
-the modeltranslation app. These are called *translation fields*. There will be
-one for every language in your project's ``settings.py``.
+Note the ``title_en`` and ``text_en`` fields which are not declared in the
+original ``News`` model class but rather have been added by the
+modeltranslation app. These are called *translation fields*. There will be
+one for every language in your project's ``settings.py`` that is not the
+*default language*.
 
 The name of these additional fields is build using the original name of the
 translated field and appending one of the language identifiers found in the
 ``settings.LANGUAGES``.
+
+.. note::
+    The first language is treated as the *default language* unless
+    modeltranslation is configured to override it (see
+    :ref:`settings-default_language`).
 
 As these fields are added to the registered model class as fully valid Django
 model fields, they will appear in the db schema for the model although it has
@@ -104,8 +106,8 @@ the translated models.
 In case you are translating an existing project and your models have already
 been synced to the database you will need to alter the tables in your database
 and add these additional translation fields. Note that all added fields are
-declared ``null=True`` not matter if the original field is required. In other
-words - all translations are optional. To populate the default translation
-fields added by the modeltranslation application you can use the
-``update_translation_fields`` command below. See
-:ref:`commands-update_translation_fields` section for more infos on this.
+declared ``null=True`` no matter if the original field is required. In other
+words - all translations are optional.
+
+A management command is provided to handle the addition of new fields. See
+:ref:`commands-sync_translation_fields` section for more infos on this.

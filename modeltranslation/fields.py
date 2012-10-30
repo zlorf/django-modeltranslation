@@ -79,23 +79,14 @@ class TranslationField(object):
         self.blank = True
 
         # Adjust the name of this field to reflect the language
-        self.attname = build_localized_fieldname(self.translated_field.name,
-                                                 self.language)
+        self.attname = build_localized_fieldname(
+            self.translated_field.name, self.language)
         self.name = self.attname
 
         # Copy the verbose name and append a language suffix
         # (will show up e.g. in the admin).
         self.verbose_name = build_localized_verbose_name(
             translated_field.verbose_name, language)
-
-    def pre_save(self, model_instance, add):
-        val = self.translated_field.__class__.pre_save(
-            self, model_instance, add)
-        if mt_settings.DEFAULT_LANGUAGE == self.language and not add:
-            # Rule is: 3. Assigning a value to a translation field of the
-            # default language also updates the original field
-            model_instance.__dict__[self.translated_field.attname] = val
-        return val
 
     def get_prep_value(self, value):
         if value == '':
@@ -147,12 +138,6 @@ class TranslationFieldDescriptor(object):
         self.fallback_value = fallback_value
 
     def __set__(self, instance, value):
-        lang = get_language()
-        loc_field_name = build_localized_fieldname(self.name, lang)
-        # also update the translation field of the current language
-        setattr(instance, loc_field_name, value)
-        # update the original field via the __dict__ to prevent calling the
-        # descriptor
         instance.__dict__[self.name] = value
 
     def __get__(self, instance, owner):
@@ -160,8 +145,11 @@ class TranslationFieldDescriptor(object):
             raise ValueError(
                 "Translation field '%s' can only be accessed via an instance "
                 "not via a class." % self.name)
-        loc_field_name = build_localized_fieldname(
-            self.name, get_language())
+        lang = get_language()
+        if lang == mt_settings.DEFAULT_LANGUAGE:
+            return instance.__dict__[self.name]
+
+        loc_field_name = build_localized_fieldname(self.name, lang)
         if hasattr(instance, loc_field_name):
             if getattr(instance, loc_field_name):
                 return getattr(instance, loc_field_name)

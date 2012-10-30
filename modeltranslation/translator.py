@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-from django.conf import settings
 from django.db.models.base import ModelBase
 
+from modeltranslation import settings as mt_settings
 from modeltranslation.fields import (TranslationFieldDescriptor,
                                      create_translation_field)
-from modeltranslation.utils import build_localized_fieldname
+from modeltranslation.utils import (build_localized_fieldname,
+                                    build_localized_verbose_name)
+from modeltranslation.settings import FIELD_LANGUAGES
 
 
 class AlreadyRegistered(Exception):
@@ -42,12 +44,12 @@ def add_localized_fields(model):
     translation_opts = translator.get_options_for_model(model)
     for field_name in translation_opts.fields:
         localized_fields[field_name] = list()
-        for l in settings.LANGUAGES:
+        for lang in FIELD_LANGUAGES:
             # Create a dynamic translation field
             translation_field = create_translation_field(
-                model=model, field_name=field_name, lang=l[0])
+                model=model, field_name=field_name, lang=lang)
             # Construct the name for the localized field
-            localized_field_name = build_localized_fieldname(field_name, l[0])
+            localized_field_name = build_localized_fieldname(field_name, lang)
             # Check if the model already has a field by that name
             if hasattr(model, localized_field_name):
                 raise ValueError(
@@ -58,6 +60,11 @@ def add_localized_fields(model):
             # django model fields and therefore adds them via add_to_class
             model.add_to_class(localized_field_name, translation_field)
             localized_fields[field_name].append(localized_field_name)
+        # Copy the verbose name of the the original field and append a
+        # language suffix (will show up e.g. in the admin).
+        field = model._meta.get_field(field_name)
+        field.verbose_name = build_localized_verbose_name(
+            field.verbose_name, mt_settings.DEFAULT_LANGUAGE)
     return localized_fields
 
 
@@ -197,6 +204,7 @@ class Translator(object):
             fields = set()
             localized_fieldnames = {}
             localized_fieldnames_rev = {}
+            original_fieldname = ''
             for parent in model._meta.parents.keys():
                 if parent in self._registry:
                     trans_opts = self._registry[parent]

@@ -4,7 +4,8 @@ from django.utils.encoding import force_unicode
 from django.utils.translation import get_language as _get_language
 from django.utils.functional import lazy
 
-from modeltranslation.settings import DEFAULT_LANGUAGE, AVAILABLE_LANGUAGES
+from modeltranslation.settings import (DEFAULT_LANGUAGE, AVAILABLE_LANGUAGES,
+                                       FIELD_LANGUAGES)
 
 
 def get_language():
@@ -20,11 +21,15 @@ def get_language():
     return DEFAULT_LANGUAGE
 
 
-def get_translation_fields(field):
+def get_translation_fields(field_name, include_original=False):
     """
-    Returns a list of localized fieldnames for a given field.
+    Returns a list of localized fieldnames for a given field_name.
     """
-    return [build_localized_fieldname(field, l) for l in AVAILABLE_LANGUAGES]
+    translation_fields = [build_localized_fieldname(
+        field_name, l) for l in FIELD_LANGUAGES]
+    if include_original:
+        translation_fields.insert(0, field_name)
+    return translation_fields
 
 
 def build_localized_fieldname(field_name, lang):

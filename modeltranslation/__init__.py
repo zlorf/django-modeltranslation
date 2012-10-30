@@ -34,6 +34,7 @@ def autodiscover():
             # attempting to import it, otherwise we want it to bubble up.
             if module_has_submodule(mod, 'translation'):
                 raise
+            #raise
 
     for module in TRANSLATION_FILES:
         import_module(module)

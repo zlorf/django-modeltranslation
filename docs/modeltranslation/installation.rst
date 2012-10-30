@@ -120,6 +120,8 @@ Advanced Settings
 
 Modeltranslation also has some advanced settings to customize its behaviour:
 
+.. _settings-default_language:
+
 ``MODELTRANSLATION_DEFAULT_LANGUAGE``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
