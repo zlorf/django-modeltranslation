@@ -215,7 +215,7 @@ class ModeltranslationWithFileFields(ModeltranslationTestBase):
         self.failUnless('file_en' in field_names)
         inst.delete()
 
-    def test_translated_models_instance(self):
+    def test_file_field_instances(self):
         #f_en = ContentFile("Just a really good file")
         inst = TestModelWithFileFields(title="Testtitle", file=None)
 
