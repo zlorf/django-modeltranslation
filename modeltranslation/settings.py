@@ -33,3 +33,6 @@ ENABLE_REGISTRATIONS = getattr(
 # Modeltranslation specific debug setting
 DEBUG = getattr(
     settings, 'MODELTRANSLATION_DEBUG', settings.DEBUG)
+
+USE_MULTILINGUAL_MANAGER = getattr(
+    settings, 'MODELTRANSLATION_USE_MULTILINGUAL_MANAGER', True)

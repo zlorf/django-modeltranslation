@@ -100,18 +100,72 @@ class ModeltranslationTest(ModeltranslationTestBase):
         field_names = dir(inst)
         self.failUnless('id' in field_names)
         self.failUnless('title' in field_names)
-        #self.failUnless('title_de' in field_names)
         self.failUnless('title_en' in field_names)
         self.failUnless('text' in field_names)
-        #self.failUnless('text_de' in field_names)
         self.failUnless('text_en' in field_names)
         self.failUnless('url' in field_names)
-        #self.failUnless('url_de' in field_names)
         self.failUnless('url_en' in field_names)
         self.failUnless('email' in field_names)
-        #self.failUnless('email_de' in field_names)
         self.failUnless('email_en' in field_names)
         inst.delete()
+
+    def test_queryset(self):
+        self.failUnlessEqual(get_language(), 'de')
+        title_de = 'title de'
+        title_en = 'title en'
+
+        obj = TestModel.objects.create(title=title_de)
+        self.failUnlessEqual(obj.title, title_de)
+        qs = TestModel.objects.filter(title=title_de)
+        self.failUnlessEqual(qs[0].title, title_de)
+        self.failUnlessEqual(qs[0].title_en, None)
+        qs = TestModel.objects.filter(title__startswith='title d')
+        self.failUnlessEqual(qs[0].title, title_de)
+        obj.delete()
+
+        obj = TestModel.objects.create(title_en=title_en)
+        qs = TestModel.objects.filter(title_en=title_en)
+        self.failUnlessEqual(qs[0].title_en, title_en)
+        # TODO: Do we really expect an empty string or None?
+        self.failUnlessEqual(qs[0].title, '')
+        qs = TestModel.objects.filter(title_en__startswith='title e')
+        self.failUnlessEqual(qs[0].title_en, title_en)
+        obj.delete()
+
+        trans_real.activate('en')
+        self.failUnlessEqual(get_language(), 'en')
+        obj = TestModel.objects.create(title=title_en)
+        self.failUnlessEqual(obj.title, title_en)
+        qs = TestModel.objects.filter(title=title_en)
+        obj.delete()
+
+    def test_order_by(self):
+        trans_real.activate('de')
+        self.failUnlessEqual(get_language(), 'de')
+        TestModel.objects.create(title_en='b')
+        TestModel.objects.create(title_en='a')
+        TestModel.objects.create(title_en='c')
+        qs = TestModel.objects.all().order_by('title')
+        # Note: The title field reflects the default language ('de').
+        # First ensure german title have no values (we didn't set any).
+        self.failUnlessEqual(qs[0].title, '')
+        self.failUnlessEqual(qs[1].title, '')
+        self.failUnlessEqual(qs[2].title, '')
+        # Because the current language is also german, ordering should simply
+        # happen on this field, nothing special, because the are empty we
+        # expect the queryset to be ordered by id.
+        self.failUnlessEqual(qs[0].title_en, 'b')
+        self.failUnlessEqual(qs[1].title_en, 'a')
+        self.failUnlessEqual(qs[2].title_en, 'c')
+
+        # Now switch to ``en`` and order by the original field again.
+        trans_real.activate('en')
+        qs = TestModel.objects.all().order_by('title')
+        # This time we expect, as the queryset is aware of the current
+        # language, to be ordered by the ``title_en`` field.
+        self.failUnlessEqual(qs[0].title_en, 'a')
+        self.failUnlessEqual(qs[1].title_en, 'b')
+        self.failUnlessEqual(qs[2].title_en, 'c')
 
     def test_verbose_name(self):
         inst = TestModel.objects.create(title="Testtitle", text="Testtext")
