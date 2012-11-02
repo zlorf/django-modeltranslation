@@ -226,7 +226,6 @@ class Translator(object):
             fields = set()
             localized_fieldnames = {}
             localized_fieldnames_rev = {}
-            original_fieldname = ''
             for parent in model._meta.parents.keys():
                 if parent in self._registry:
                     trans_opts = self._registry[parent]

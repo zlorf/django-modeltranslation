@@ -4,7 +4,6 @@ from copy import deepcopy
 from django.contrib import admin
 from django.contrib.admin.options import BaseModelAdmin, InlineModelAdmin
 from django.contrib.contenttypes import generic
-from django.utils import translation
 
 # Ensure that models are registered for translation before TranslationAdmin
 # runs. The import is supposed to resolve a race condition between model import
@@ -33,7 +32,8 @@ class TranslationBaseModelAdmin(BaseModelAdmin):
         if self.fieldsets:
             return self._patch_fieldsets(self.fieldsets)
         elif self.fields:
-            return [(None, {'fields': self.add_translation_fields(self.fields)})]
+            return [(None,
+                    {'fields': self.add_translation_fields(self.fields)})]
         return None
     declared_fieldsets = property(_declared_fieldsets)
 
@@ -49,7 +49,7 @@ class TranslationBaseModelAdmin(BaseModelAdmin):
         and make it easier to use in frontend code.
         """
         if (db_field.name in self.trans_opts.localized_fieldnames_rev or
-            db_field.name in self.trans_opts.fields):
+                db_field.name in self.trans_opts.fields):
             css_classes = field.widget.attrs.get('class', '').split(' ')
             css_classes.append('mt')
             if db_field.name in self.trans_opts.localized_fieldnames_rev:

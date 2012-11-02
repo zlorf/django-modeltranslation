@@ -9,7 +9,6 @@ python modeltranslation/tests/runtests.py
 TODO: Merge autoregister tests from django-modeltranslation-wrapper.
 """
 from django import forms
-from django.conf import settings
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
@@ -77,7 +76,7 @@ class ModeltranslationTest(ModeltranslationTestBase):
         #self.client.session['django_language'] = 'de-de'
         #self.client.cookies[settings.LANGUAGE_COOKIE_NAME] = 'de-de'
 
-        langs = tuple(l[0] for l in settings.LANGUAGES)
+        langs = tuple(l for l in mt_settings.AVAILABLE_LANGUAGES)
         self.failUnlessEqual(2, len(langs))
         self.failUnless('de' in langs)
         self.failUnless('en' in langs)
@@ -199,24 +198,6 @@ class ModeltranslationTest(ModeltranslationTestBase):
         n = TestModel.objects.get(title=title1_de)
         self.failUnlessEqual(n.title, title1_de)
         self.failUnlessEqual(n.title_en, title1_en)
-
-#    def test_titleonly(self):
-#        title1_de = "title de"
-#        n = TestModel.objects.create(title=title1_de)
-#        self.failUnlessEqual(n.title, title1_de)
-#        # Because the original field "title" was specified in the constructor
-#        # it is directly passed into the instance's __dict__ and the descriptor
-#        # which updates the associated default translation field is not called
-#        # and the default translation will be None.
-#        self.failUnlessEqual(n.title_de, None)
-#        self.failUnlessEqual(n.title_en, None)
-#
-#        # Now assign the title, that triggers the descriptor and the default
-#        # translation field is updated
-#        n.title = title1_de
-#        self.failUnlessEqual(n.title, title1_de)
-#        self.failUnlessEqual(n.title_de, title1_de)
-#        self.failUnlessEqual(n.title_en, None)
 
     def test_fallback_values_1(self):
         """
@@ -365,10 +346,8 @@ class ModeltranslationTestRule1(ModeltranslationTestBase):
         # Language is set to 'de' at this point
         self.failUnlessEqual(get_language(), 'de')
         self.failUnlessEqual(n.title, title1_de)
-        #self.failUnlessEqual(n.title_de, title1_de)
         self.failUnlessEqual(n.title_en, title1_en)
         self.failUnlessEqual(n.text, text_de)
-        #self.failUnlessEqual(n.text_de, text_de)
         self.failUnlessEqual(n.text_en, text_en)
         # Now switch to "en"
         trans_real.activate("en")
@@ -383,10 +362,8 @@ class ModeltranslationTestRule1(ModeltranslationTestBase):
         n.save()
         # Language is set to "en" at this point
         self.failUnlessEqual(n.title, title1_en)
-        #self.failUnlessEqual(n.title_de, title1_de)
         self.failUnlessEqual(n.title_en, title1_en)
         self.failUnlessEqual(n.text, text_en)
-        #self.failUnlessEqual(n.text_de, text_de)
         self.failUnlessEqual(n.text_en, text_en)
         trans_real.activate('de')
         self.failUnlessEqual(get_language(), 'de')
@@ -427,7 +404,8 @@ class ModeltranslationTestRule1(ModeltranslationTestBase):
 #        setattr(n, field_name, value2)
 #        n.save()
 #        self.failUnlessEqual(getattr(n, field_name), value2)
-#        self.failUnlessEqual(getattr(n, field_name), getattr(n, field_name_de))
+#        self.failUnlessEqual(getattr(n, field_name),
+#                             getattr(n, field_name_de))
 #
 #        trans_real.activate("en")
 #        self.failUnlessEqual(get_language(), "en")
@@ -436,7 +414,8 @@ class ModeltranslationTestRule1(ModeltranslationTestBase):
 #        setattr(n, field_name_de, value1_de)
 #        n.save()
 #        self.failUnlessEqual(getattr(n, field_name), value3)
-#        self.failUnlessEqual(getattr(n, field_name), getattr(n, field_name_en))
+#        self.failUnlessEqual(getattr(n, field_name),
+#                             getattr(n, field_name_en))
 #        self.failUnlessEqual(value1_de, getattr(n, field_name_de))
 #
 #        if deactivate:
@@ -511,7 +490,8 @@ class ModeltranslationTestRule1(ModeltranslationTestBase):
 #
 #        setattr(n, field_name, value2)
 #        n.save()
-#        self.failUnlessEqual(getattr(n, field_name), getattr(n, field_name_de))
+#        self.failUnlessEqual(getattr(n, field_name),
+#                             getattr(n, field_name_de))
 #
 #        # Now switch to "en"
 #        trans_real.activate("en")
@@ -519,7 +499,8 @@ class ModeltranslationTestRule1(ModeltranslationTestBase):
 #        setattr(n, field_name_en, value3)
 #        # the n.title field is not updated before the instance is saved
 #        n.save()
-#        self.failUnlessEqual(getattr(n, field_name), getattr(n, field_name_en))
+#        self.failUnlessEqual(getattr(n, field_name),
+#                             getattr(n, field_name_en))
 #
 #        if deactivate:
 #            trans_real.deactivate()
@@ -565,7 +546,8 @@ class ModeltranslationTestRule1(ModeltranslationTestBase):
 #        # original field is set to value of the current language's field.
 #        # See issue 33 for details.
 #
-#        # TODO: Reactivate, temporarily deactivated for a full run of travis ci
+#        # TODO: Reactivate, temporarily deactivated for a full run of
+#        #       travis-ci
 #        #self.failUnlessEqual(n.title, n.title_de)
 #
 #        # Fetch the updated object and verify all fields

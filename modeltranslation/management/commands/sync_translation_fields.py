@@ -43,7 +43,7 @@ def print_missing_langs(missing_langs, field_name, model_name):
     print 'Missing languages in "%s" field from "%s" model: %s' % (
         field_name, model_name, ", ".join(
             ['%s (original field)' % l if l == mt_settings.DEFAULT_LANGUAGE
-             else l  for l in missing_langs]))
+             else l for l in missing_langs]))
 
 
 class Command(BaseCommand):
@@ -144,12 +144,10 @@ class Command(BaseCommand):
             field_sql = [style.SQL_FIELD(qn(f.column)),
                          style.SQL_COLTYPE(col_type)]
             # Column creation
-            sql_output.append(
-                "ALTER TABLE %s ADD COLUMN %s%s;" % (
-                    qn(db_table), ' '.join(field_sql),
-                    style.SQL_KEYWORD(' NOT NULL') if (
-                        not f.null and lang == mt_settings.DEFAULT_LANGUAGE)
-                        else ''))
+            sql_output.append("ALTER TABLE %s ADD COLUMN %s%s;" % (
+                qn(db_table), ' '.join(field_sql),
+                style.SQL_KEYWORD(' NOT NULL') if not f.null and (
+                    lang == mt_settings.DEFAULT_LANGUAGE) else ''))
             # FIXME: Raises _mysql_exceptions.Warning:
             #        Data truncated for column 'name' at row 1
             #if not f.null and lang == mt_settings.DEFAULT_LANGUAGE:
