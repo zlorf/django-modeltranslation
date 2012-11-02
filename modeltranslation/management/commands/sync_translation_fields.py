@@ -1,20 +1,22 @@
 # -*- coding: utf-8 -*-
 """
-Detect new translatable fields in all models and sync database structure.
+Detect new translation fields in all models and sync database structure.
 
 You will need to execute this command in two cases:
 
     1. When you add new languages to settings.LANGUAGES.
-    2. When you add new translatable fields to your models.
+    2. When you register new translation fields for your models.
+    3. When you change the default language (partly, only missing fields
+       are added, old ones aren't modified).
 
 Credits: Heavily inspired by django-transmeta's sync_transmeta_db command.
 """
-from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.core.management.color import no_style
 from django.db import connection, transaction
 from django.db.models import get_models
 
+from modeltranslation import settings as mt_settings
 from modeltranslation.translator import translator, NotRegistered
 from modeltranslation.utils import build_localized_fieldname
 
@@ -30,7 +32,7 @@ def ask_for_confirmation(sql_sentences, model_full_name):
         if answer == '':
             return False
         elif answer not in ('y', 'n', 'yes', 'no'):
-            print 'Please answer yes or no'
+            print 'Please answer yes or no (y/n)'
         elif answer == 'y' or answer == 'yes':
             return True
         else:
@@ -39,7 +41,9 @@ def ask_for_confirmation(sql_sentences, model_full_name):
 
 def print_missing_langs(missing_langs, field_name, model_name):
     print 'Missing languages in "%s" field from "%s" model: %s' % (
-        field_name, model_name, ", ".join(missing_langs))
+        field_name, model_name, ", ".join(
+            ['%s (original field)' % l if l == mt_settings.DEFAULT_LANGUAGE
+             else l  for l in missing_langs]))
 
 
 class Command(BaseCommand):
@@ -81,8 +85,9 @@ class Command(BaseCommand):
                         execute_sql = ask_for_confirmation(
                             sql_sentences, model_full_name)
                         if execute_sql:
-                            print 'Executing SQL...',
+                            print 'Executing SQL...\n',
                             for sentence in sql_sentences:
+                                print sentence
                                 self.cursor.execute(sentence)
                             print 'Done'
                         else:
@@ -108,9 +113,17 @@ class Command(BaseCommand):
         Gets only missings fields.
         """
         db_table_fields = self.get_table_fields(db_table)
-        for lang_code, lang_name in settings.LANGUAGES:
-            if build_localized_fieldname(
-                    field_name, lang_code) not in db_table_fields:
+
+        for lang_code in mt_settings.AVAILABLE_LANGUAGES:
+            # Note: The original field is treated as the default language,
+            # that's we why check against the original fieldname without a
+            # language postfix here. We still want it be included because it
+            # might be a field that is registered for translation first and
+            # doesn't exist yet.
+            if field_name not in db_table_fields or (
+                lang_code != mt_settings.DEFAULT_LANGUAGE and
+                build_localized_fieldname(
+                    field_name, lang_code) not in db_table_fields):
                 yield lang_code
 
     def get_sync_sql(self, field_name, missing_langs, model):
@@ -122,18 +135,26 @@ class Command(BaseCommand):
         sql_output = []
         db_table = model._meta.db_table
         for lang in missing_langs:
-            new_field = build_localized_fieldname(field_name, lang)
+            if lang == mt_settings.DEFAULT_LANGUAGE:
+                new_field = field_name
+            else:
+                new_field = build_localized_fieldname(field_name, lang)
             f = model._meta.get_field(new_field)
             col_type = f.db_type(connection)
             field_sql = [style.SQL_FIELD(qn(f.column)),
                          style.SQL_COLTYPE(col_type)]
-            # column creation
+            # Column creation
             sql_output.append(
-                "ALTER TABLE %s ADD COLUMN %s;" % (
-                    qn(db_table), ' '.join(field_sql)))
-            if not f.null and lang == settings.LANGUAGE_CODE:
-                sql_output.append(
-                    ("ALTER TABLE %s MODIFY COLUMN %s %s %s;" % (
-                        qn(db_table), qn(f.column), col_type,
-                        style.SQL_KEYWORD('NOT NULL'))))
+                "ALTER TABLE %s ADD COLUMN %s%s;" % (
+                    qn(db_table), ' '.join(field_sql),
+                    style.SQL_KEYWORD(' NOT NULL') if (
+                        not f.null and lang == mt_settings.DEFAULT_LANGUAGE)
+                        else ''))
+            # FIXME: Raises _mysql_exceptions.Warning:
+            #        Data truncated for column 'name' at row 1
+            #if not f.null and lang == mt_settings.DEFAULT_LANGUAGE:
+            #    sql_output.append(
+            #        ("ALTER TABLE %s MODIFY COLUMN %s %s %s;" % (
+            #            qn(db_table), qn(f.column), col_type,
+            #            style.SQL_KEYWORD('NOT NULL'))))
         return sql_output
