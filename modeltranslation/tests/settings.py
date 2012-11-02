@@ -57,3 +57,5 @@ LANGUAGES = (('de', 'Deutsch'),
 DEFAULT_LANGUAGE = 'de'
 
 SECRET_KEY = 'z5)t*g3003n23lze(&amp;u5)kt&amp;9gtcf)*-o++m2#n-w!qts7u1cj'
+
+MODELTRANSLATION_USE_MULTILINGUAL_MANAGER = True

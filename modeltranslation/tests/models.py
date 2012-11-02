@@ -59,3 +59,6 @@ class TestModelAbstractB(TestModelAbstractA):
 
 class DataModel(models.Model):
     data = models.TextField(blank=True, null=True)
+
+    def foo(self):
+        return 'bar'

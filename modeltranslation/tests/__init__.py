@@ -13,6 +13,7 @@ from django.contrib.admin.sites import AdminSite
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
+from django.db.models import Q, F
 from django.db.models.loading import AppCache
 from django.test import TestCase
 from django.utils.datastructures import SortedDict
@@ -1042,3 +1043,207 @@ class TranslationAdminTest(ModeltranslationTestBase):
             ma_fieldsets = ma.inlines[0](
                 TestModel, self.site).get_fieldsets(request, self.test_obj)
         self.assertEqual(ma_fieldsets, fieldsets)
+
+
+class TestManager(ModeltranslationTest):
+    def test_settings(self):
+        """
+        Test if settings are correct and everything loaded fine.
+        """
+        fields = dir(TestModel())
+        self.assertIn('title', fields)
+        self.assertIn('title_en', fields)
+
+    def test_filter(self):
+        """
+        Test if filtering and updating is language-aware.
+        """
+        self.assertEqual(True, mt_settings.USE_MULTILINGUAL_MANAGER)
+
+        # Current language is the default language
+        self.assertEqual(get_language(), 'de')
+        self.assertEqual(mt_settings.DEFAULT_LANGUAGE, 'de')
+
+        n = TestModel.objects.create(title='')
+        n.title = 'de'
+        n.title_en = 'en'
+        n.save()
+
+        m = TestModel.objects.create(title='')
+        m.title = 'de'
+        m.title_en = 'title en'
+        m.save()
+
+        self.assertEqual(TestModel.objects.filter(title='de').count(), 2)
+        self.assertEqual(TestModel.objects.filter(title='en').count(), 0)
+        self.assertEqual(
+            TestModel.objects.filter(title__contains='en').count(), 0)
+
+        # Now switch current language to english
+        trans_real.activate('en')
+        self.assertEqual(get_language(), 'en')
+        self.assertNotEqual(get_language(), mt_settings.DEFAULT_LANGUAGE)
+
+        self.assertEqual(TestModel.objects.filter(title='de').count(), 0)
+        self.assertEqual(TestModel.objects.filter(title='en').count(), 1)
+        self.assertEqual(
+            TestModel.objects.filter(title__contains='en').count(), 2)
+        self.assertEqual(
+            TestModel.objects.filter(title__startswith='t').count(), 1)
+
+        # Still possible to use explicit language version
+        self.assertEqual(
+            TestModel.objects.filter(title_en='en').count(), 1)
+        self.assertEqual(
+            TestModel.objects.filter(title_en__contains='en').count(), 2)
+
+        n.delete()
+        m.delete()
+
+    def test_update(self):
+        self.assertEqual(True, mt_settings.USE_MULTILINGUAL_MANAGER)
+
+        # Current language is the default language
+        self.assertEqual(get_language(), 'de')
+        self.assertEqual(mt_settings.DEFAULT_LANGUAGE, 'de')
+
+        n = TestModel.objects.create(title='')
+        n.title = 'de'
+        n.title_en = 'en'
+        n.save()
+
+        m = TestModel.objects.create(title='')
+        m.title = 'de'
+        m.title_en = 'title en'
+        m.save()
+
+        TestModel.objects.update(title='new')
+        n = TestModel.objects.get(pk=n.pk)
+        m = TestModel.objects.get(pk=m.pk)
+        self.assertEqual('en', n.title_en)
+        self.assertEqual('new', n.title)
+        self.assertEqual('title en', m.title_en)
+        self.assertEqual('new', m.title)
+
+        n.delete()
+        m.delete()
+
+    def test_q(self):
+        """
+        Test if Q queries are rewritten.
+        """
+        n = TestModel.objects.create(title='')
+        n.title = 'de'
+        n.title_en = 'en'
+        n.save()
+
+        self.assertEqual(get_language(), 'de')
+        self.assertEqual(
+            TestModel.objects.filter(Q(title='de') | Q(pk=42)).count(), 1)
+        self.assertEqual(
+            TestModel.objects.filter(Q(title='en') | Q(pk=42)).count(), 0)
+
+        trans_real.activate('en')
+        self.assertEqual(
+            TestModel.objects.filter(Q(title='de') | Q(pk=42)).count(), 0)
+        self.assertEqual(
+            TestModel.objects.filter(Q(title='en') | Q(pk=42)).count(), 1)
+
+        n.delete()
+
+    def test_f(self):
+        """
+        Test if F queries are rewritten.
+        """
+        self.assertEqual(get_language(), 'de')
+        TestModel.objects.create(title_en=1, title=2)
+
+        # Adding strings doesn't work - we will add string numbers instead.
+        # Although it is silly, it seems to works (sqlite, MySQL)
+        TestModel.objects.update(title=F('title')+10)
+        n = TestModel.objects.all()[0]
+        self.assertEqual(n.title, '12')
+        self.assertEqual(n.title_en, '1')
+
+        trans_real.activate('en')
+        TestModel.objects.update(title=F('title')+20)
+        n = TestModel.objects.all()[0]
+        self.assertEqual(n.title, '21')
+        self.assertEqual(n.title_en, '21')
+
+        n.delete()
+
+    def test_custom_manager(self):
+        """
+        Test if user-defined manager is still working.
+        TODO: Finish, perhaps we need a new model with a custom manager...
+        """
+        n = DataModel.objects.create(data='')
+        n.name = 'foo'
+        n.name_en = 'enigma'
+        n.save()
+
+        m = DataModel.objects.create(data='')
+        m.name = 'bar'
+        m.name_en = 'enigma'
+        m.save()
+
+        self.assertEqual(get_language(), 'de')
+
+        # Custom method
+        self.assertEqual('bar', DataModel.objects.foo())
+
+        # Ensure that get_query_set is working
+        self.assertEqual(DataModel.objects.count(), 2)
+
+        trans_real.activate('en')
+        self.assertEqual(DataModel.objects.count(), 1)
+
+    def test_creation(self):
+        """
+        Test if language fields are populated with default value on creation.
+        TODO: Do the actual merge.
+        """
+        from modeltranslation.tests.models import TestModel
+        n = TestModel.objects.create(title='foo', _populate=True)
+        self.assertEqual('foo', n.title_en)
+        self.assertEqual('foo', n.title_pl)
+        self.assertEqual('foo', n.title)
+
+        # You can specify some language...
+        n = TestModel.objects.create(title='foo', title_pl='bar',
+                                     _populate=True)
+        self.assertEqual('foo', n.title_en)
+        self.assertEqual('bar', n.title_pl)
+        self.assertEqual('foo', n.title)
+
+        # ... and remember that still bare attribute points to current language
+        n = TestModel.objects.create(title='foo', title_en='bar',
+                                     _populate=True)
+        self.assertEqual('bar', n.title_en)
+        self.assertEqual('foo', n.title_pl)
+        self.assertEqual('bar', n.title)
+        trans_real.activate('pl')
+        try:
+            self.assertEqual('foo', n.title)
+        finally:
+            trans_real.deactivate()
+
+        # This feature (for backward-compatibility) require _populate keyword.
+        n = TestModel.objects.create(title='foo')
+        self.assertEqual(None, n.title_en)
+        self.assertEqual(None, n.title_pl)
+        self.assertEqual('foo', n.title)
+
+        # ... or MODELTRANSLATION_AUTO_POPULATE setting
+        mt_settings.MODELTRANSLATION_AUTO_POPULATE = True
+        n = TestModel.objects.create(title='foo')
+        self.assertEqual('foo', n.title_en)
+        self.assertEqual('foo', n.title_pl)
+        self.assertEqual('foo', n.title)
+
+        # _populate keyword has highest priority
+        n = TestModel.objects.create(title='foo', _populate=False)
+        self.assertEqual(None, n.title_en)
+        self.assertEqual(None, n.title_pl)
+        self.assertEqual('foo', n.title)
