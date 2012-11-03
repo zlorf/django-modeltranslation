@@ -10,50 +10,50 @@ class TestModel(models.Model):
     email = models.EmailField(blank=True, null=True)
 
 
-class TestModelFallback(models.Model):
+class FallbackTestModel(models.Model):
     title = models.CharField(ugettext_lazy('title'), max_length=255)
     text = models.TextField(blank=True, null=True)
     url = models.URLField(blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
 
 
-class TestModelFallback2(models.Model):
+class FallbackTestModel2(models.Model):
     title = models.CharField(ugettext_lazy('title'), max_length=255)
     text = models.TextField(blank=True, null=True)
     url = models.URLField(blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
 
 
-class TestModelFileFields(models.Model):
+class FileFieldsModel(models.Model):
     title = models.CharField(ugettext_lazy('title'), max_length=255)
     file = models.FileField(upload_to='test', null=True, blank=True)
     image = models.ImageField(upload_to='test', null=True, blank=True)
 
 
-class TestModelMultitableA(models.Model):
+class MultitableModelA(models.Model):
     titlea = models.CharField(ugettext_lazy('title a'), max_length=255)
 
 
-class TestModelMultitableB(TestModelMultitableA):
+class MultitableModelB(MultitableModelA):
     titleb = models.CharField(ugettext_lazy('title b'), max_length=255)
 
 
-class TestModelMultitableC(TestModelMultitableB):
+class MultitableModelC(MultitableModelB):
     titlec = models.CharField(ugettext_lazy('title c'), max_length=255)
 
 
-class TestModelMultitableD(TestModelMultitableB):
+class MultitableModelD(MultitableModelB):
     titled = models.CharField(ugettext_lazy('title d'), max_length=255)
 
 
-class TestModelAbstractA(models.Model):
+class AbstractModelA(models.Model):
     titlea = models.CharField(ugettext_lazy('title a'), max_length=255)
 
     class Meta:
         abstract = True
 
 
-class TestModelAbstractB(TestModelAbstractA):
+class AbstractModelB(AbstractModelA):
     titleb = models.CharField(ugettext_lazy('title b'), max_length=255)
 
 
@@ -70,7 +70,7 @@ class CustomManager(models.Manager):
         return 'bar'
 
 
-class TestModelCustomManager(models.Model):
+class CustomManagerModel(models.Model):
     name = models.CharField(max_length=50)
 
     objects = CustomManager()
