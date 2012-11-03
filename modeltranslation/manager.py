@@ -7,7 +7,6 @@ Modeltranslation implementation merged from
 django-modeltranslation-wrapper by Jacek Tomaszewski
 https://github.com/zlorf/django-modeltranslation-wrapper
 """
-from django.conf import settings
 from django.db import models
 from django.db.models.fields.related import RelatedField
 from django.utils.translation import get_language
@@ -15,10 +14,7 @@ from django.utils.tree import Node
 
 from modeltranslation import translator
 from modeltranslation import settings as mt_settings
-
-
-def get_real_field_name(field_name, lang):
-    return '%s_%s' % (field_name, lang)
+from modeltranslation.utils import build_localized_fieldname
 
 
 _registry = {}
@@ -38,17 +34,18 @@ def get_translatable_fields_for_model(model):
 def rewrite_lookup_key(model, lookup_key):
     translatable_fields = get_translatable_fields_for_model(model)
     lang = get_language()
+
     if lang != mt_settings.DEFAULT_LANGUAGE:
         if translatable_fields is not None:
             pieces = lookup_key.split('__')
+
             # If we are doing a lookup on a translatable field,
             # we want to rewrite it to the actual field name
             # For example, we want to rewrite "name__startswith" to
             # "name_fr__startswith"
             if pieces[0] in translatable_fields:
-                lookup_key = get_real_field_name(
-                    pieces[0], get_language().split('-')[0])
-
+                lookup_key = build_localized_fieldname(
+                    pieces[0], lang.replace('-', '_'))
                 remaining_lookup = '__'.join(pieces[1:])
                 if remaining_lookup:
                     lookup_key = '%s__%s' % (lookup_key, remaining_lookup)
@@ -78,6 +75,18 @@ def get_fields_to_translatable_models(model):
                     field_object.related.parent_model) is not None:
                 results.append((field_name, field_object.related.parent_model))
     return results
+
+
+#class StandardDescriptor(object):
+#    def __init__(self, name, initial_val=''):
+#        self.name = name
+#        self.val = initial_val
+#
+#    def __set__(self, instance, value):
+#        instance.__dict__[self.name] = value
+#
+#    def __get__(self, instance, owner):
+#        return instance.__dict__[self.name]
 
 
 class MultilingualQuerySet(models.query.QuerySet):
@@ -130,22 +139,48 @@ class MultilingualQuerySet(models.query.QuerySet):
         return super(MultilingualQuerySet, self).update(**kwargs)
     update.alters_data = True
 
-    def create(self, **kwargs):
-        """
-        Note: This method was not present in django-linguo
-        """
-        translatable_fields = get_translatable_fields_for_model(self.model)
-        use_feature = kwargs.pop(
-            '_populate', getattr(
-                settings, 'MODELTRANSLATION_AUTO_POPULATE', False))
-        if translatable_fields is not None and use_feature:
-            for key, val in kwargs.items():
-                if key in translatable_fields:
-                    # Try to add value in every language
-                    for lang, _ in settings.LANGUAGES:
-                        new_key = get_real_field_name(key, lang)
-                        kwargs.setdefault(new_key, val)
-        return super(MultilingualQuerySet, self).create(**kwargs)
+#    def create(self, **kwargs):
+#        """
+#        Note: This method was not present in django-linguo
+#        """
+#        translatable_fields = get_translatable_fields_for_model(self.model)
+#        #print translatable_fields
+#        if translatable_fields is not None:
+#            for key, val in kwargs.items():
+#                if key in translatable_fields:
+#                    # This is our original field. Avoid calling the descriptor
+#                    # to update it instead of the current translation field.
+#                    print self.model, key
+#                    #setattr(self.model, key, StandardDescriptor(key))
+#                    setattr(self.model, key, TranslationFieldDescriptor(
+#                            key))
+#        return super(MultilingualQuerySet, self).create(**kwargs)
+
+#    def create(self, **kwargs):
+#        """
+#        Note: This method was not present in django-linguo
+#        """
+#        translatable_fields = get_translatable_fields_for_model(self.model)
+#        use_feature = kwargs.pop('_populate', mt_settings.AUTO_POPULATE)
+#        if translatable_fields is not None and use_feature:
+#            for key, val in kwargs.items():
+#                if key in translatable_fields:
+#                    # Try to add value in every language
+#                    for lang in mt_settings.AVAILABLE_LANGUAGES:
+#                        if lang != mt_settings.DEFAULT_LANGUAGE:
+#                            new_key = build_localized_fieldname(key, lang)
+#                            kwargs.setdefault(new_key, val)
+#
+##                        if lang == mt_settings.DEFAULT_LANGUAGE:
+##                            new_key = key
+##                        else:
+##                            new_key = build_localized_fieldname(key, lang)
+#
+#                        #new_key = build_localized_fieldname(key, lang)
+#                        #print new_key
+#
+##                        kwargs.setdefault(new_key, val)
+#        return super(MultilingualQuerySet, self).create(**kwargs)
 
 
 class MultilingualManager(models.Manager):

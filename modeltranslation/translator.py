@@ -121,8 +121,8 @@ class Translator(object):
         if current_manager.__class__ is Manager:
             current_manager.__class__ = MultilingualManager
         else:
-            class NewMultilingualManager(current_manager.__class__,
-                                         MultilingualManager):
+            class NewMultilingualManager(
+                    current_manager.__class__, MultilingualManager):
                 pass
             current_manager.__class__ = NewMultilingualManager
 
@@ -142,6 +142,10 @@ class Translator(object):
             if model in self._registry:
                 raise AlreadyRegistered('The model %s is already registered '
                                         'for translation' % model.__name__)
+
+            # Apply MultilingualManager
+            if mt_settings.USE_MULTILINGUAL_MANAGER:
+                self._add_manager(model)
 
             # If we got **options then dynamically construct a subclass of
             # translation_opts with those **options.
@@ -187,12 +191,6 @@ class Translator(object):
                 field_fallback_value = model_fallback_values
             setattr(model, field_name, TranslationFieldDescriptor(
                 field_name, fallback_value=field_fallback_value))
-
-        if mt_settings.USE_MULTILINGUAL_MANAGER:
-            if isinstance(model_or_iterable, ModelBase):
-                model_or_iterable = [model_or_iterable]
-            for model in model_or_iterable:
-                self._add_manager(model)
 
         #signals.pre_init.connect(translated_model_initializing, sender=model,
                                  #weak=False)

@@ -31,8 +31,8 @@ def create_translation_field(model, field_name, lang):
             cls_name in mt_settings.CUSTOM_FIELDS):
         raise ImproperlyConfigured(
             '%s is not supported by modeltranslation.' % cls_name)
-    translation_class = field_factory(field.__class__)
-    return translation_class(translated_field=field, language=lang)
+    translation_cls = field_factory(field.__class__)
+    return translation_cls(translated_field=field, language=lang)
 
 
 def field_factory(baseclass):
@@ -126,7 +126,7 @@ class TranslationField(object):
 
 class TranslationFieldDescriptor(object):
     """
-    A descriptor used for the original translated field.
+    A descriptor used for the original field (e.g. ``title``).
     """
     def __init__(self, name, initial_val='', fallback_value=None):
         """
@@ -146,21 +146,27 @@ class TranslationFieldDescriptor(object):
                 "Translation field '%s' can only be accessed via an instance "
                 "not via a class." % self.name)
         lang = get_language()
+
+        # If current language is the default language, simply return the
+        # fields standard value.
         if lang == mt_settings.DEFAULT_LANGUAGE:
+            #print ('If current language is the default language, simply '
+            #       'return the fields standard value (lang: %s).' % lang)
             return instance.__dict__[self.name]
 
         loc_field_name = build_localized_fieldname(self.name, lang)
         if hasattr(instance, loc_field_name):
             if getattr(instance, loc_field_name):
+                # Return current language's translation field value
+                # (e.g. ``title_de``).
+                #print 'Return current languages translation field value'
                 return getattr(instance, loc_field_name)
             elif self.fallback_value is None:
-                return self.get_default_instance(instance)
+                # Return standard field value
+                #print 'Return standard field value (loc_field_name: %s)' % (
+                #    loc_field_name)
+                return instance.__dict__[self.name]
             else:
+                # Return fallback field value
+                #print 'Return fallback field value'
                 return self.fallback_value
-
-    def get_default_instance(self, instance):
-        """
-        Returns default instance of the field. Supposed to be overidden by
-        related subclasses.
-        """
-        return instance.__dict__[self.name]

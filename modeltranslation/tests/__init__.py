@@ -25,11 +25,11 @@ from modeltranslation import translator
 from modeltranslation.admin import (TranslationAdmin,
                                     TranslationStackedInline)
 from modeltranslation.tests.models import (
-    DataModel, TestModel, TestModelWithFallback, TestModelWithFallback2,
-    TestModelWithFileFields, TestModelAbstractB, TestModelMultitableA,
-    TestModelMultitableB, TestModelMultitableC, TestModelMultitableD)
-from modeltranslation.tests.translation import (
-    TestTranslationOptionsWithFallback2)
+    DataModel, TestModel, TestModelFallback, TestModelFallback2,
+    TestModelFileFields, TestModelAbstractB, TestModelMultitableA,
+    TestModelMultitableB, TestModelMultitableC, TestModelMultitableD,
+    TestModelCustomManager)
+from modeltranslation.tests.translation import TestTranslationOptionsFallback2
 
 
 # None of the following tests really depend on the content of the request,
@@ -84,7 +84,7 @@ class ModeltranslationTest(ModeltranslationTestBase):
         self.failUnless(translator.translator)
 
         # Check that eight models are registered for translation
-        self.failUnlessEqual(len(translator.translator._registry), 9)
+        self.failUnlessEqual(len(translator.translator._registry), 10)
 
         # Try to unregister a model that is not registered
         self.assertRaises(translator.NotRegistered,
@@ -152,7 +152,7 @@ class ModeltranslationTest(ModeltranslationTestBase):
         self.failUnlessEqual(qs[1].title, '')
         self.failUnlessEqual(qs[2].title, '')
         # Because the current language is also german, ordering should simply
-        # happen on this field, nothing special, because the are empty we
+        # happen on this field, nothing special, because they are empty we
         # expect the queryset to be ordered by id.
         self.failUnlessEqual(qs[0].title_en, 'b')
         self.failUnlessEqual(qs[1].title_en, 'a')
@@ -206,11 +206,11 @@ class ModeltranslationTest(ModeltranslationTestBase):
         return this string.
         """
         title1_de = "title de"
-        n = TestModelWithFallback()
+        n = TestModelFallback()
         n.title = title1_de
         n.save()
         del n
-        n = TestModelWithFallback.objects.get(title=title1_de)
+        n = TestModelFallback.objects.get(title=title1_de)
         self.failUnlessEqual(n.title, title1_de)
         trans_real.activate("en")
         self.failUnlessEqual(n.title, "")
@@ -223,37 +223,35 @@ class ModeltranslationTest(ModeltranslationTestBase):
         """
         title1_de = "title de"
         text1_de = "text in german"
-        n = TestModelWithFallback2()
+        n = TestModelFallback2()
         n.title = title1_de
         n.text = text1_de
         n.save()
         del n
-        n = TestModelWithFallback2.objects.get(title=title1_de)
+        n = TestModelFallback2.objects.get(title=title1_de)
         trans_real.activate("en")
         self.failUnlessEqual(n.title, title1_de)
         self.failUnlessEqual(
             n.text,
-            TestTranslationOptionsWithFallback2.fallback_values['text'])
+            TestTranslationOptionsFallback2.fallback_values['text'])
 
 
 class ModeltranslationWithFileFields(ModeltranslationTestBase):
     def test_file_fields(self):
         # First create an instance of the test model to play with
-        inst = TestModelWithFileFields.objects.create(
+        inst = TestModelFileFields.objects.create(
             title="Testtitle", file=None)
         field_names = dir(inst)
         self.failUnless('id' in field_names)
         self.failUnless('title' in field_names)
-        #self.failUnless('title_de' in field_names)
         self.failUnless('title_en' in field_names)
         self.failUnless('file' in field_names)
-        #self.failUnless('file_de' in field_names)
         self.failUnless('file_en' in field_names)
         inst.delete()
 
     def test_file_field_instances(self):
         #f_en = ContentFile("Just a really good file")
-        inst = TestModelWithFileFields(title="Testtitle", file=None)
+        inst = TestModelFileFields(title="Testtitle", file=None)
 
         trans_real.activate("en")
         inst.title = 'title_en'
@@ -382,279 +380,6 @@ class ModeltranslationTestRule1(ModeltranslationTestBase):
         self._test_field(field_name='email',
                          value_de='django-modeltranslation@googlecode.de',
                          value_en='django-modeltranslation@googlecode.com')
-
-
-#class ModeltranslationTestRule2(ModeltranslationTestBase):
-#    """
-#    Rule 2: Assigning a value to the original field also updates the value
-#    in the associated translation field of the default language
-#    """
-#    def _test_field(self, field_name, value1_de, value1_en, value2, value3,
-#                    deactivate=True):
-#        field_name_de = '%s_de' % field_name
-#        field_name_en = '%s_en' % field_name
-#        params = {'title_de': 'title de', 'title_en': 'title en',
-#                  field_name_de: value1_de, field_name_en: value1_en}
-#
-#        self.failUnlessEqual(get_language(), 'de')
-#        n = TestModel.objects.create(**params)
-#        self.failUnlessEqual(getattr(n, field_name), value1_de)
-#        self.failUnlessEqual(getattr(n, field_name_de), value1_de)
-#        self.failUnlessEqual(getattr(n, field_name_en), value1_en)
-#
-#        setattr(n, field_name, value2)
-#        n.save()
-#        self.failUnlessEqual(getattr(n, field_name), value2)
-#        self.failUnlessEqual(getattr(n, field_name),
-#                             getattr(n, field_name_de))
-#
-#        trans_real.activate("en")
-#        self.failUnlessEqual(get_language(), "en")
-#
-#        setattr(n, field_name, value3)
-#        setattr(n, field_name_de, value1_de)
-#        n.save()
-#        self.failUnlessEqual(getattr(n, field_name), value3)
-#        self.failUnlessEqual(getattr(n, field_name),
-#                             getattr(n, field_name_en))
-#        self.failUnlessEqual(value1_de, getattr(n, field_name_de))
-#
-#        if deactivate:
-#            trans_real.deactivate()
-#
-#    def test_rule2(self):
-#        """
-#        Basic CharField/TextField test.
-#        Could as well call _test_field, just kept for reference.
-#        """
-#        self.failUnlessEqual(get_language(), 'de')
-#        title1_de = "title de"
-#        title1_en = "title en"
-#        n = TestModel.objects.create(title_de=title1_de, title_en=title1_en)
-#        self.failUnlessEqual(n.title, title1_de)
-#        self.failUnlessEqual(n.title_de, title1_de)
-#        self.failUnlessEqual(n.title_en, title1_en)
-#
-#        title2 = "Neuer Titel"
-#        n.title = title2
-#        n.save()
-#        self.failUnlessEqual(n.title, title2)
-#        self.failUnlessEqual(n.title, n.title_de)
-#
-#        trans_real.activate("en")
-#        self.failUnlessEqual(get_language(), "en")
-#        title3 = "new title"
-#
-#        n.title = title3
-#        n.title_de = title1_de
-#        n.save()
-#        self.failUnlessEqual(n.title, title3)
-#        self.failUnlessEqual(n.title, n.title_en)
-#        self.failUnlessEqual(title1_de, n.title_de)
-#
-#        trans_real.deactivate()
-#
-#    def test_rule2_url_field(self):
-#        self._test_field(field_name='url',
-#                         value1_de='http://www.google.de',
-#                         value1_en='http://www.google.com',
-#                         value2='http://www.google.at',
-#                         value3='http://www.google.co.uk')
-#
-#    def test_rule2_email_field(self):
-#        self._test_field(field_name='email',
-#                         value1_de='django-modeltranslation@googlecode.de',
-#                         value1_en='django-modeltranslation@googlecode.com',
-#                         value2='django-modeltranslation@googlecode.at',
-#                         value3='django-modeltranslation@googlecode.co.uk')
-
-
-#class ModeltranslationTestRule3(ModeltranslationTestBase):
-#    """
-#    Rule 3: Assigning a value to a translation field of the default
-#    language also updates the original field - note that the value of the
-#    original field will not be updated until the model instance is saved.
-#    """
-#    def _test_field(self, field_name, value1_de, value1_en, value2, value3,
-#                    deactivate=True):
-#        field_name_de = '%s_de' % field_name
-#        field_name_en = '%s_en' % field_name
-#        params = {'title_de': 'title de', 'title_en': 'title en',
-#                  field_name_de: value1_de, field_name_en: value1_en}
-#
-#        n = TestModel.objects.create(**params)
-#
-#        self.failUnlessEqual(get_language(), 'de')
-#        self.failUnlessEqual(getattr(n, field_name), value1_de)
-#        self.failUnlessEqual(getattr(n, field_name_de), value1_de)
-#        self.failUnlessEqual(getattr(n, field_name_en), value1_en)
-#
-#        setattr(n, field_name, value2)
-#        n.save()
-#        self.failUnlessEqual(getattr(n, field_name),
-#                             getattr(n, field_name_de))
-#
-#        # Now switch to "en"
-#        trans_real.activate("en")
-#        self.failUnlessEqual(get_language(), "en")
-#        setattr(n, field_name_en, value3)
-#        # the n.title field is not updated before the instance is saved
-#        n.save()
-#        self.failUnlessEqual(getattr(n, field_name),
-#                             getattr(n, field_name_en))
-#
-#        if deactivate:
-#            trans_real.deactivate()
-#
-#    def test_rule3(self):
-#        """
-#        Basic CharField/TextField test.
-#        Could as well call _test_field, just kept for reference.
-#        """
-#        title1_de = "title de"
-#        title1_en = "title en"
-#        n = TestModel.objects.create(title_de=title1_de, title_en=title1_en)
-#        self.failUnlessEqual(get_language(), 'de')
-#        self.failUnlessEqual(mt_settings.DEFAULT_LANGUAGE, 'de')
-#        self.failUnlessEqual(n.title, title1_de)
-#        self.failUnlessEqual(n.title_de, title1_de)
-#        self.failUnlessEqual(n.title_en, title1_en)
-#
-#        n.title_de = "Neuer Titel"
-#        n.save()
-#        # We expect that the original field holds the same value as the german
-#        # one (german is the default language).
-#        self.failUnlessEqual(n.title, n.title_de)
-#
-#        # Fetch the updated object and verify all fields
-#        updated_obj = TestModel.objects.get(id=n.id)
-#        self.failUnlessEqual(updated_obj.title, 'Neuer Titel')
-#        self.failUnlessEqual(updated_obj.title_de, 'Neuer Titel')
-#        self.failUnlessEqual(updated_obj.title_en, 'title en')
-#
-#        # Now switch to "en"
-#        trans_real.activate("en")
-#        self.failUnlessEqual(get_language(), "en")
-#        n.title_en = "New title"
-#        # the n.title field is not updated before the instance is saved
-#        n.save()
-#
-#        # We expect that the original field has *not* been changed as german
-#        # is the default language and we only changed the value of the english
-#        # field.
-#        # FIXME: Demonstrates a wrong behaviour of save when the current
-#        # language is different than the default language. In this case the
-#        # original field is set to value of the current language's field.
-#        # See issue 33 for details.
-#
-#        # TODO: Reactivate, temporarily deactivated for a full run of
-#        #       travis-ci
-#        #self.failUnlessEqual(n.title, n.title_de)
-#
-#        # Fetch the updated object and verify all fields
-#        #updated_obj = TestModel.objects.get(id=n.id)
-#        #self.failUnlessEqual(updated_obj.title, 'Neuer Titel')
-#        #self.failUnlessEqual(updated_obj.title_de, 'Neuer Titel')
-#        #self.failUnlessEqual(updated_obj.title_en, 'New title')
-#
-#        trans_real.deactivate()
-#
-#    def test_rule3_url_field(self):
-#        self._test_field(field_name='url',
-#                         value1_de='http://www.google.de',
-#                         value1_en='http://www.google.com',
-#                         value2='http://www.google.at',
-#                         value3='http://www.google.co.uk')
-#
-#    def test_rule3_email_field(self):
-#        self._test_field(field_name='email',
-#                         value1_de='django-modeltranslation@googlecode.de',
-#                         value1_en='django-modeltranslation@googlecode.com',
-#                         value2='django-modeltranslation@googlecode.at',
-#                         value3='django-modeltranslation@googlecode.co.uk')
-
-
-#class ModeltranslationTestRule4(ModeltranslationTestBase):
-#    """
-#    Rule 4: If both fields - the original and the translation field of the
-#    default language - are updated at the same time, the translation field
-#    wins.
-#    """
-#    def _test_field(self, field_name, value1_de, value1_en, value2_de,
-#                    value2_en, value3, deactivate=True):
-#        field_name_de = '%s_de' % field_name
-#        field_name_en = '%s_en' % field_name
-#        params = {'title_de': 'title de', 'title_en': 'title en',
-#                  field_name_de: value1_de, field_name_en: value1_en}
-#
-#        n = TestModel.objects.create(**params)
-#
-#        self.failUnlessEqual(getattr(n, field_name), value1_de)
-#        self.failUnlessEqual(getattr(n, field_name_de), value1_de)
-#        self.failUnlessEqual(getattr(n, field_name_en), value1_en)
-#
-#        setattr(n, field_name, value3)
-#        setattr(n, field_name_de, value2_de)
-#        setattr(n, field_name_en, value2_en)
-#        n.save()
-#        self.failUnlessEqual(getattr(n, field_name), value2_de)
-#        self.failUnlessEqual(getattr(n, field_name_de), value2_de)
-#        self.failUnlessEqual(getattr(n, field_name_en), value2_en)
-#
-#        setattr(n, field_name, value3)
-#        n.save()
-#        self.failUnlessEqual(getattr(n, field_name), value3)
-#        self.failUnlessEqual(getattr(n, field_name_de), value3)
-#        self.failUnlessEqual(getattr(n, field_name_en), value2_en)
-#
-#        if deactivate:
-#            trans_real.deactivate()
-#
-#    def test_rule4(self):
-#        """
-#        Basic CharField/TextField test.
-#        Could as well call _test_field, just kept for reference.
-#        """
-#        self.failUnlessEqual(get_language(), 'de')
-#        title1_de = "title de"
-#        title1_en = "title en"
-#        n = TestModel.objects.create(title_de=title1_de, title_en=title1_en)
-#        self.failUnlessEqual(n.title, title1_de)
-#        self.failUnlessEqual(n.title_de, title1_de)
-#        self.failUnlessEqual(n.title_en, title1_en)
-#
-#        title2_de = "neu de"
-#        title2_en = "new en"
-#        title_foo = "foo"
-#        n.title = title_foo
-#        n.title_de = title2_de
-#        n.title_en = title2_en
-#        n.save()
-#        self.failUnlessEqual(n.title, title2_de)
-#        self.failUnlessEqual(n.title_de, title2_de)
-#        self.failUnlessEqual(n.title_en, title2_en)
-#
-#        n.title = title_foo
-#        n.save()
-#        self.failUnlessEqual(n.title, title_foo)
-#        self.failUnlessEqual(n.title_de, title_foo)
-#        self.failUnlessEqual(n.title_en, title2_en)
-#
-#    def test_rule4_url_field(self):
-#        self._test_field(field_name='url',
-#                         value1_de='http://www.google.de',
-#                         value1_en='http://www.google.com',
-#                         value2_de='http://www.google.at',
-#                         value2_en='http://www.google.co.uk',
-#                         value3='http://www.google.net')
-#
-#    def test_rule4_email_field(self):
-#        self._test_field(field_name='email',
-#                         value1_de='django-modeltranslation@googlecode.de',
-#                         value1_en='django-modeltranslation@googlecode.com',
-#                         value2_de='django-modeltranslation@googlecode.at',
-#                         value2_en='django-modeltranslation@googlecode.co.uk',
-#                         value3='django-modeltranslation@googlecode.net')
 
 
 class ModeltranslationTestModelValidation(ModeltranslationTestBase):
@@ -810,44 +535,37 @@ class ModeltranslationTestModelValidation(ModeltranslationTestBase):
 
 
 class ModeltranslationInheritanceTest(ModeltranslationTestBase):
-    """Tests for inheritance support in modeltranslation."""
+    """
+    Tests for inheritance support in modeltranslation.
+    """
     def test_abstract_inheritance(self):
         field_names_b = TestModelAbstractB._meta.get_all_field_names()
         self.failIf('titled' in field_names_b)
-        #self.failIf('titled_de' in field_names_b)
         self.failIf('titled_en' in field_names_b)
 
     def test_multitable_inheritance(self):
         field_names_a = TestModelMultitableA._meta.get_all_field_names()
         self.failUnless('titlea' in field_names_a)
-        #self.failUnless('titlea_de' in field_names_a)
         self.failUnless('titlea_en' in field_names_a)
 
         field_names_b = TestModelMultitableB._meta.get_all_field_names()
         self.failUnless('titlea' in field_names_b)
-        #self.failUnless('titlea_de' in field_names_b)
         self.failUnless('titlea_en' in field_names_b)
         self.failUnless('titleb' in field_names_b)
-        #self.failUnless('titleb_de' in field_names_b)
         self.failUnless('titleb_en' in field_names_b)
 
         field_names_c = TestModelMultitableC._meta.get_all_field_names()
         self.failUnless('titlea' in field_names_c)
-        #self.failUnless('titlea_de' in field_names_c)
         self.failUnless('titlea_en' in field_names_c)
         self.failUnless('titleb' in field_names_c)
-        #self.failUnless('titleb_de' in field_names_c)
         self.failUnless('titleb_en' in field_names_c)
         self.failUnless('titlec' in field_names_c)
-        #self.failUnless('titlec_de' in field_names_c)
         self.failUnless('titlec_en' in field_names_c)
 
         field_names_d = TestModelMultitableD._meta.get_all_field_names()
         self.failUnless('titlea' in field_names_d)
-        #self.failUnless('titlea_de' in field_names_d)
         self.failUnless('titlea_en' in field_names_d)
         self.failUnless('titleb' in field_names_d)
-        #self.failUnless('titleb_de' in field_names_d)
         self.failUnless('titleb_en' in field_names_d)
         self.failUnless('titled' in field_names_d)
 
@@ -1045,15 +763,7 @@ class TranslationAdminTest(ModeltranslationTestBase):
         self.assertEqual(ma_fieldsets, fieldsets)
 
 
-class TestManager(ModeltranslationTest):
-    def test_settings(self):
-        """
-        Test if settings are correct and everything loaded fine.
-        """
-        fields = dir(TestModel())
-        self.assertIn('title', fields)
-        self.assertIn('title_en', fields)
-
+class MultilingualManagerTest(ModeltranslationTest):
     def test_filter(self):
         """
         Test if filtering and updating is language-aware.
@@ -1176,74 +886,115 @@ class TestManager(ModeltranslationTest):
     def test_custom_manager(self):
         """
         Test if user-defined manager is still working.
-        TODO: Finish, perhaps we need a new model with a custom manager...
         """
-        n = DataModel.objects.create(data='')
+        self.assertEqual(mt_settings.USE_MULTILINGUAL_MANAGER, True)
+
+        n = TestModelCustomManager.objects.create(name='')
         n.name = 'foo'
         n.name_en = 'enigma'
         n.save()
 
-        m = DataModel.objects.create(data='')
+        m = TestModelCustomManager.objects.create(name='')
         m.name = 'bar'
         m.name_en = 'enigma'
         m.save()
 
         self.assertEqual(get_language(), 'de')
 
-        # Custom method
-        self.assertEqual('bar', DataModel.objects.foo())
+        # Test presence of custom manager method
+        self.assertEqual(TestModelCustomManager.objects.foo(), 'bar')
 
         # Ensure that get_query_set is working
-        self.assertEqual(DataModel.objects.count(), 2)
+        # Uses filter(name__contains='a')
+        self.assertEqual(TestModelCustomManager.objects.count(), 1)
 
         trans_real.activate('en')
-        self.assertEqual(DataModel.objects.count(), 1)
+        self.assertEqual(TestModelCustomManager.objects.count(), 2)
 
-    def test_creation(self):
+    def test_create(self):
         """
-        Test if language fields are populated with default value on creation.
-        TODO: Do the actual merge.
         """
-        from modeltranslation.tests.models import TestModel
-        n = TestModel.objects.create(title='foo', _populate=True)
-        self.assertEqual('foo', n.title_en)
-        self.assertEqual('foo', n.title_pl)
-        self.assertEqual('foo', n.title)
+        #self.assertEqual(mt_settings.AUTO_POPULATE, False)
+        self.assertEqual(mt_settings.USE_MULTILINGUAL_MANAGER, True)
 
-        # You can specify some language...
-        n = TestModel.objects.create(title='foo', title_pl='bar',
-                                     _populate=True)
-        self.assertEqual('foo', n.title_en)
-        self.assertEqual('bar', n.title_pl)
-        self.assertEqual('foo', n.title)
-
-        # ... and remember that still bare attribute points to current language
-        n = TestModel.objects.create(title='foo', title_en='bar',
-                                     _populate=True)
-        self.assertEqual('bar', n.title_en)
-        self.assertEqual('foo', n.title_pl)
-        self.assertEqual('bar', n.title)
-        trans_real.activate('pl')
-        try:
-            self.assertEqual('foo', n.title)
-        finally:
-            trans_real.deactivate()
-
-        # This feature (for backward-compatibility) require _populate keyword.
+        trans_real.activate('en')
         n = TestModel.objects.create(title='foo')
-        self.assertEqual(None, n.title_en)
-        self.assertEqual(None, n.title_pl)
-        self.assertEqual('foo', n.title)
+        #print '---------'
+        #print 'test n.title: %s' % n.title
+        #print "test n.__dict__['title']: %s" % n.__dict__['title']
+        #print "test n.__dict__['title_en']: %s" % n.__dict__['title_en']
+        self.assertEqual(n.title, 'foo')
+        self.assertEqual(n.title_en, None)
+        self.assertEqual(n.__dict__['title'], 'foo')
+        self.assertEqual(n.__dict__['title_en'], None)
+        n = TestModel.objects.create(title_en='foo')
+        self.assertEqual(n.title, 'foo')
+        self.assertEqual(n.title_en, 'foo')
+        self.assertEqual(n.__dict__['title'], '')
+        self.assertEqual(n.__dict__['title_en'], 'foo')
 
-        # ... or MODELTRANSLATION_AUTO_POPULATE setting
-        mt_settings.MODELTRANSLATION_AUTO_POPULATE = True
+        trans_real.activate('de')
         n = TestModel.objects.create(title='foo')
-        self.assertEqual('foo', n.title_en)
-        self.assertEqual('foo', n.title_pl)
-        self.assertEqual('foo', n.title)
+        self.assertEqual(n.title, 'foo')
+        self.assertEqual(n.title_en, None)
+        self.assertEqual(n.__dict__['title'], 'foo')
+        self.assertEqual(n.__dict__['title_en'], None)
+        n = TestModel.objects.create(title_en='foo')
+        self.assertEqual(n.title, '')
+        self.assertEqual(n.title_en, 'foo')
+        self.assertEqual(n.__dict__['title'], '')
+        self.assertEqual(n.__dict__['title_en'], 'foo')
 
-        # _populate keyword has highest priority
-        n = TestModel.objects.create(title='foo', _populate=False)
-        self.assertEqual(None, n.title_en)
-        self.assertEqual(None, n.title_pl)
-        self.assertEqual('foo', n.title)
+#    def test_create_populate(self):
+#        """
+#        Test if language fields are populated with default value on creation.
+#        TODO: Do the actual merge.
+#        """
+#        trans_real.activate('en')
+#        self.assertEqual(mt_settings.AUTO_POPULATE, False)
+#        self.assertEqual(mt_settings.USE_MULTILINGUAL_MANAGER, True)
+#
+#        # First check the default behaviour ...
+#        n = TestModel.objects.create(title='foo')
+#        self.assertEqual(n.title_en, 'foo')
+#        self.assertEqual(n.title, None)
+#        # .. this is equal to
+#        n = TestModel.objects.create(title='foo', _populate=False)
+#        self.assertEqual(n.title_en, 'foo')
+#        self.assertEqual(n.title, None)
+#
+#        # Now populate
+#        n = TestModel.objects.create(title='foo', _populate=True)
+#        self.assertEqual(n.title_en, 'foo')
+#        self.assertEqual(n.title, 'foo')
+#
+#        # You can specify some language...
+#        n = TestModel.objects.create(title='foo', title_en='bar',
+#                                     _populate=True)
+#        self.assertEqual(n.title_en, 'bar')
+#        self.assertEqual(n.title, 'foo')
+#
+#        # ... and remember that still bare attribute points to current language
+#        n = TestModel.objects.create(title='foo', title_en='bar',
+#                                     _populate=True)
+#        self.assertEqual(n.title_en, 'bar')
+#        self.assertEqual(n.title, 'bar')
+#
+#        trans_real.activate('de')
+#        self.assertEqual(n.title, 'foo')
+#
+#        # This feature (for backward-compatibility) require _populate keyword.
+#        n = TestModel.objects.create(title='foo')
+#        self.assertEqual(n.title_en, None)
+#        self.assertEqual(n.title, 'foo')
+#
+#        # ... or MODELTRANSLATION_AUTO_POPULATE setting
+#        mt_settings.AUTO_POPULATE = True
+#        n = TestModel.objects.create(title='foo')
+#        self.assertEqual(n.title_en, 'foo')
+#        self.assertEqual(n.title, 'foo')
+#
+#        # _populate keyword has highest priority
+#        n = TestModel.objects.create(title='foo', _populate=False)
+#        self.assertEqual(n.title_en, None)
+#        self.assertEqual(n.title, 'foo')

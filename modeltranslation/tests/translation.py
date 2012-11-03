@@ -3,9 +3,10 @@ from django.utils.translation import ugettext_lazy
 
 from modeltranslation.translator import translator, TranslationOptions
 from modeltranslation.tests.models import (
-    TestModel, TestModelWithFallback, TestModelWithFallback2,
-    TestModelWithFileFields, TestModelAbstractA, TestModelAbstractB,
-    TestModelMultitableA, TestModelMultitableB, TestModelMultitableC)
+    TestModel, TestModelFallback, TestModelFallback2,
+    TestModelFileFields, TestModelAbstractA, TestModelAbstractB,
+    TestModelMultitableA, TestModelMultitableB, TestModelMultitableC,
+    TestModelCustomManager)
 
 
 class TestTranslationOptions(TranslationOptions):
@@ -13,25 +14,25 @@ class TestTranslationOptions(TranslationOptions):
 translator.register(TestModel, TestTranslationOptions)
 
 
-class TestTranslationOptionsWithFallback(TranslationOptions):
+class TestTranslationOptionsFallback(TranslationOptions):
     fields = ('title', 'text', 'url', 'email',)
     fallback_values = ""
-translator.register(TestModelWithFallback,
-                    TestTranslationOptionsWithFallback)
+translator.register(TestModelFallback,
+                    TestTranslationOptionsFallback)
 
 
-class TestTranslationOptionsWithFallback2(TranslationOptions):
+class TestTranslationOptionsFallback2(TranslationOptions):
     fields = ('title', 'text', 'url', 'email',)
     fallback_values = {'text': ugettext_lazy('Sorry, translation is not '
                                              'available.')}
-translator.register(TestModelWithFallback2,
-                    TestTranslationOptionsWithFallback2)
+translator.register(TestModelFallback2,
+                    TestTranslationOptionsFallback2)
 
 
-class TestTranslationOptionsModelWithFileFields(TranslationOptions):
+class TestTranslationOptionsModelFileFields(TranslationOptions):
     fields = ('title', 'file', 'image')
-translator.register(TestModelWithFileFields,
-                    TestTranslationOptionsModelWithFileFields)
+translator.register(TestModelFileFields,
+                    TestTranslationOptionsModelFileFields)
 
 
 class TranslationOptionsTestModelMultitableA(TranslationOptions):
@@ -62,3 +63,9 @@ class TranslationOptionsTestModelAbstractB(TranslationOptions):
     fields = ('titleb',)
 translator.register(TestModelAbstractB,
                     TranslationOptionsTestModelAbstractB)
+
+
+class TranslationOptionsTestModelCustomManager(TranslationOptions):
+    fields = ('name',)
+translator.register(TestModelCustomManager,
+                    TranslationOptionsTestModelCustomManager)

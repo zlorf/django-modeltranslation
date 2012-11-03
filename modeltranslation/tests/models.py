@@ -10,21 +10,21 @@ class TestModel(models.Model):
     email = models.EmailField(blank=True, null=True)
 
 
-class TestModelWithFallback(models.Model):
+class TestModelFallback(models.Model):
     title = models.CharField(ugettext_lazy('title'), max_length=255)
     text = models.TextField(blank=True, null=True)
     url = models.URLField(blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
 
 
-class TestModelWithFallback2(models.Model):
+class TestModelFallback2(models.Model):
     title = models.CharField(ugettext_lazy('title'), max_length=255)
     text = models.TextField(blank=True, null=True)
     url = models.URLField(blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
 
 
-class TestModelWithFileFields(models.Model):
+class TestModelFileFields(models.Model):
     title = models.CharField(ugettext_lazy('title'), max_length=255)
     file = models.FileField(upload_to='test', null=True, blank=True)
     image = models.ImageField(upload_to='test', null=True, blank=True)
@@ -60,5 +60,17 @@ class TestModelAbstractB(TestModelAbstractA):
 class DataModel(models.Model):
     data = models.TextField(blank=True, null=True)
 
+
+class CustomManager(models.Manager):
+    def get_query_set(self):
+        return super(CustomManager, self).get_query_set().filter(
+            name__contains='a')
+
     def foo(self):
         return 'bar'
+
+
+class TestModelCustomManager(models.Model):
+    name = models.CharField(max_length=50)
+
+    objects = CustomManager()

@@ -36,3 +36,6 @@ DEBUG = getattr(
 
 USE_MULTILINGUAL_MANAGER = getattr(
     settings, 'MODELTRANSLATION_USE_MULTILINGUAL_MANAGER', True)
+
+#AUTO_POPULATE = getattr(
+#    settings, 'MODELTRANSLATION_AUTO_POPULATE', False)
