@@ -71,7 +71,9 @@ class ModeltranslationTestBase(TestCase):
 
 
 class ModeltranslationTest(ModeltranslationTestBase):
-    """Basic tests for the modeltranslation application."""
+    """
+    Basic tests for the modeltranslation application.
+    """
     def test_registration(self):
         self.client.post('/set_language/', data={'language': 'de'})
         #self.client.session['django_language'] = 'de-de'
@@ -232,73 +234,68 @@ class ModeltranslationTest(ModeltranslationTestBase):
         trans_real.activate("en")
         self.failUnlessEqual(n.title, title1_de)
         self.failUnlessEqual(
-            n.text,
-            FallbackTranslationOptions2.fallback_values['text'])
+            n.text, FallbackTranslationOptions2.fallback_values['text'])
 
 
 class FileFieldsTest(ModeltranslationTestBase):
     def test_file_fields(self):
-        # First create an instance of the test model to play with
-        inst = FileFieldsModel.objects.create(
-            title="Testtitle", file=None)
-        field_names = dir(inst)
-        self.failUnless('id' in field_names)
+        n = FileFieldsModel.objects.create(title='Testtitle', file=None)
+
+        field_names = dir(n)
         self.failUnless('title' in field_names)
         self.failUnless('title_en' in field_names)
         self.failUnless('file' in field_names)
         self.failUnless('file_en' in field_names)
-        inst.delete()
+        self.failUnless('image' in field_names)
+        self.failUnless('image_en' in field_names)
+
+        n.delete()
 
     def test_file_field_instances(self):
-        #f_en = ContentFile("Just a really good file")
-        inst = FileFieldsModel(title="Testtitle", file=None)
+        n = FileFieldsModel(title='Testtitle', file=None)
 
-        trans_real.activate("en")
-        inst.title = 'title_en'
+        trans_real.activate('en')
+        n.title = 'title en'
+        n.file = 'a_en'
 
-        inst.file = 'a_en'
-        inst.file.save('b_en', ContentFile('file in english'))
+        #n.file_en.save('b_en', ContentFile('file in english'))
+        n.file.save('b_en', ContentFile('file in english'))
+        n.image = 'i_en.jpg'
+        n.image.save('i_en.jpg', ContentFile('image in english'))
 
-        inst.image = 'i_en.jpg'
-        inst.image.save('i_en.jpg', ContentFile('image in english'))
+        trans_real.activate('de')
+        n.title = 'title de'
+        n.file = 'a_de'
+        n.file.save('b_de', ContentFile('file in german'))
+        n.image = 'i_de.jpg'
+        n.image.save('i_de.jpg', ContentFile('image in germany'))
 
-        trans_real.activate("de")
-        inst.title = 'title_de'
+        n.save()
 
-        inst.file = 'a_de'
-        inst.file.save('b_de', ContentFile('file in german'))
+        trans_real.activate('en')
+        self.failUnlessEqual(n.title, 'title_en')
+        self.failUnless(n.file.name.count('b_en') > 0)
+        self.failUnless(n.image.name.count('i_en') > 0)
 
-        inst.image = 'i_de.jpg'
-        inst.image.save('i_de.jpg', ContentFile('image in germany'))
+        trans_real.activate('de')
+        self.failUnlessEqual(n.title, 'title_de')
+        self.failUnless(n.file.name.count('b_de') > 0)
+        self.failUnless(n.image.name.count('i_de') > 0)
 
-        inst.save()
+        n.file_en.delete()
+        n.image_en.delete()
+        n.file.delete()
+        n.image.delete()
 
-        trans_real.activate("en")
-
-        self.failUnlessEqual(inst.title, 'title_en')
-        self.failUnless(inst.file.name.count('b_en') > 0)
-        self.failUnless(inst.image.name.count('i_en') > 0)
-
-        trans_real.activate("de")
-        self.failUnlessEqual(inst.title, 'title_de')
-        self.failUnless(inst.file.name.count('b_de') > 0)
-        self.failUnless(inst.image.name.count('i_de') > 0)
-
-        inst.file_en.delete()
-        inst.image_en.delete()
-        inst.file_de.delete()
-        inst.image_de.delete()
-
-        inst.delete()
+        n.delete()
 
 
-class TranslationDescriptorTest(ModeltranslationTestBase):
+class TranslationFieldDescriptorTest(ModeltranslationTestBase):
     """
-    Rule 1: Reading the value from the original field returns the value in
-    translated to the current language.
+    Reading the value from the original field returns the value in translated
+    to the current language.
     """
     def _test_field(self, field_name, value_de, value_en, deactivate=True):
-        #field_name_de = field_name
         field_name_en = '%s_en' % field_name
         params = {'title': 'title de', 'title_en': 'title en',
                   field_name: value_de, field_name_en: value_en}
@@ -307,7 +304,6 @@ class TranslationDescriptorTest(ModeltranslationTestBase):
         # Language is set to 'de' at this point
         self.failUnlessEqual(get_language(), 'de')
         self.failUnlessEqual(getattr(n, field_name), value_de)
-        #self.failUnlessEqual(getattr(n, field_name_de), value_de)
         self.failUnlessEqual(getattr(n, field_name_en), value_en)
         # Now switch to "en"
         trans_real.activate("en")
@@ -319,7 +315,6 @@ class TranslationDescriptorTest(ModeltranslationTestBase):
         n.save()
         # Language is set to "en" at this point
         self.failUnlessEqual(getattr(n, field_name), value_en)
-        #self.failUnlessEqual(getattr(n, field_name_de), value_de)
         self.failUnlessEqual(getattr(n, field_name_en), value_en)
         trans_real.activate('de')
         self.failUnlessEqual(get_language(), 'de')
@@ -328,7 +323,7 @@ class TranslationDescriptorTest(ModeltranslationTestBase):
         if deactivate:
             trans_real.deactivate()
 
-    def test_rule1(self):
+    def test_descriptor(self):
         """
         Basic CharField/TextField test.
         Could as well call _test_field, just kept for reference.
@@ -371,12 +366,12 @@ class TranslationDescriptorTest(ModeltranslationTestBase):
 
         trans_real.deactivate()
 
-    def test_rule1_url_field(self):
+    def test_url_field_descriptor(self):
         self._test_field(field_name='url',
                          value_de='http://www.google.de',
                          value_en='http://www.google.com')
 
-    def test_rule1_email_field(self):
+    def test_email_field_descriptor(self):
         self._test_field(field_name='email',
                          value_de='django-modeltranslation@googlecode.de',
                          value_en='django-modeltranslation@googlecode.com')
@@ -763,7 +758,7 @@ class TranslationAdminTest(ModeltranslationTestBase):
         self.assertEqual(ma_fieldsets, fieldsets)
 
 
-class MultilingualManagerTest(ModeltranslationTest):
+class MultilingualManagerTest(ModeltranslationTestBase):
     def test_filter(self):
         """
         Test if filtering and updating is language-aware.
@@ -944,6 +939,20 @@ class MultilingualManagerTest(ModeltranslationTest):
         self.assertEqual(n.title_en, 'foo')
         self.assertEqual(n.__dict__['title'], '')
         self.assertEqual(n.__dict__['title_en'], 'foo')
+
+    def test_language_manager(self):
+        """
+        """
+        self.assertEqual(mt_settings.USE_MULTILINGUAL_MANAGER, True)
+
+        n = TestModel.objects.create(title='de n')
+        m = TestModel.objects.create(title='de m', title_en='en m')
+        o = TestModel.objects.create(title_en='en o')
+        qs = TestModel.objects.all()
+        self.assertEqual(len(qs), 3)
+
+        trans_real.activate('en')
+        qs = TestModel.objects.language()
 
 #    def test_create_populate(self):
 #        """
