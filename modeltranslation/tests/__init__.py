@@ -865,13 +865,13 @@ class MultilingualManagerTest(ModeltranslationTestBase):
 
         # Adding strings doesn't work - we will add string numbers instead.
         # Although it is silly, it seems to works (sqlite, MySQL)
-        TestModel.objects.update(title=F('title')+10)
+        TestModel.objects.update(title=F('title') + 10)
         n = TestModel.objects.all()[0]
         self.assertEqual(n.title, '12')
         self.assertEqual(n.title_en, '1')
 
         trans_real.activate('en')
-        TestModel.objects.update(title=F('title')+20)
+        TestModel.objects.update(title=F('title') + 20)
         n = TestModel.objects.all()[0]
         self.assertEqual(n.title, '21')
         self.assertEqual(n.title_en, '21')
@@ -945,14 +945,14 @@ class MultilingualManagerTest(ModeltranslationTestBase):
         """
         self.assertEqual(mt_settings.USE_MULTILINGUAL_MANAGER, True)
 
-        n = TestModel.objects.create(title='de n')
-        m = TestModel.objects.create(title='de m', title_en='en m')
-        o = TestModel.objects.create(title_en='en o')
+        TestModel.objects.create(title='de n')
+        TestModel.objects.create(title='de m', title_en='en m')
+        TestModel.objects.create(title_en='en o')
         qs = TestModel.objects.all()
         self.assertEqual(len(qs), 3)
 
         trans_real.activate('en')
-        qs = TestModel.objects.language()
+        TestModel.objects.language()
 
 #    def test_create_populate(self):
 #        """
@@ -983,7 +983,8 @@ class MultilingualManagerTest(ModeltranslationTestBase):
 #        self.assertEqual(n.title_en, 'bar')
 #        self.assertEqual(n.title, 'foo')
 #
-#        # ... and remember that still bare attribute points to current language
+#        # ... and remember that still bare attribute points to current
+#        # language
 #        n = TestModel.objects.create(title='foo', title_en='bar',
 #                                     _populate=True)
 #        self.assertEqual(n.title_en, 'bar')

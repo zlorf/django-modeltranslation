@@ -9,7 +9,7 @@ https://github.com/zlorf/django-modeltranslation-wrapper
 """
 from django.db import models
 from django.db.models.fields.related import RelatedField
-from django.utils.translation import get_language, trans_real
+from django.utils.translation import get_language
 from django.utils.tree import Node
 
 from modeltranslation import translator
