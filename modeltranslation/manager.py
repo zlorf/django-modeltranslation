@@ -3,13 +3,13 @@ The idea of MultilingualManager is taken from
 django-linguo by Zach Mathew
 https://github.com/zmathew/django-linguo
 
-Modeltranslation implementation merged from
+Modeltranslation implementation based on
 django-modeltranslation-wrapper by Jacek Tomaszewski
 https://github.com/zlorf/django-modeltranslation-wrapper
 """
 from django.db import models
 from django.db.models.fields.related import RelatedField
-from django.utils.translation import get_language
+from django.utils.translation import get_language, trans_real
 from django.utils.tree import Node
 
 from modeltranslation import translator
@@ -139,6 +139,14 @@ class MultilingualQuerySet(models.query.QuerySet):
         return super(MultilingualQuerySet, self).update(**kwargs)
     update.alters_data = True
 
+    def language(self, language_code=None):
+        """
+        TODO: Does nothing at the moment, implement something clever.
+        """
+        if not language_code:
+            return self
+        return self
+
 #    def create(self, **kwargs):
 #        """
 #        Note: This method was not present in django-linguo
@@ -188,3 +196,6 @@ class MultilingualManager(models.Manager):
 
     def get_query_set(self):
         return MultilingualQuerySet(self.model)
+
+    def language(self, language_code=None):
+        return self.get_query_set().language(language_code)
