@@ -4,8 +4,7 @@ from django.db.models.fields import CharField, TextField
 from django.db.models.fields.files import FileField, ImageField
 
 from modeltranslation import settings as mt_settings
-from modeltranslation.utils import (get_language,
-                                    build_localized_fieldname,
+from modeltranslation.utils import (get_language, build_localized_fieldname,
                                     build_localized_verbose_name)
 
 
@@ -36,12 +35,12 @@ def create_translation_field(model, field_name, lang):
 
 
 def field_factory(baseclass):
-    class TranslationFieldSpecific(TranslationField, baseclass):
+    class TranslationField(TranslationFieldBase, baseclass):
         pass
-    return TranslationFieldSpecific
+    return TranslationField
 
 
-class TranslationField(object):
+class TranslationFieldBase(object):
     """
     The translation field functions as a proxy to the original field which is
     wrapped.
@@ -67,7 +66,7 @@ class TranslationField(object):
 
     def _post_init(self, translated_field, language):
         """
-        Common init for subclasses of TranslationField.
+        Common init for subclasses of TranslationFieldBase.
         """
         # Store the originally wrapped field for later
         self.translated_field = translated_field
@@ -121,7 +120,7 @@ class TranslationField(object):
         trans_formfield = self.translated_field.formfield(*args, **kwargs)
         defaults = {'widget': type(trans_formfield.widget)}
         defaults.update(kwargs)
-        return super(TranslationField, self).formfield(*args, **defaults)
+        return super(TranslationFieldBase, self).formfield(*args, **defaults)
 
 
 class TranslationFieldDescriptor(object):
