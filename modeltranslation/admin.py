@@ -84,16 +84,6 @@ class TranslationBaseModelAdmin(BaseModelAdmin):
                 orig_fieldname]
         self.add_css_classes(db_field, field)
 
-    def _exclude_original_fields(self, exclude=None):
-        if exclude is None:
-            exclude = tuple()
-        if exclude:
-            exclude_new = tuple(exclude)
-            #return exclude_new + tuple(self.trans_opts.fields)
-            return exclude_new
-        #return tuple(self.trans_opts.fields)
-        return tuple()
-
     def add_translation_fields(self, option):
         """
         Adds translation fields to next to each original field in `option` that
