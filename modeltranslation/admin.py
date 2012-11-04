@@ -17,7 +17,6 @@ from modeltranslation.utils import (build_localized_fieldname,
 
 class TranslationBaseModelAdmin(BaseModelAdmin):
     _original_css_classes = {}
-    _replaced = {}
 
     def __init__(self, *args, **kwargs):
         super(TranslationBaseModelAdmin, self).__init__(*args, **kwargs)
