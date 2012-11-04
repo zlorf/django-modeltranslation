@@ -24,9 +24,6 @@ class TranslationOptions(object):
 
     The options are registered in combination with a model class at the
     ``modeltranslation.translator.translator`` instance.
-
-    It caches the content type of the translated model for faster lookup later
-    on.
     """
     def __init__(self, *args, **kwargs):
         self.localized_fieldnames = []
@@ -41,49 +38,39 @@ def add_localized_fields(model):
     Returns a dict mapping the original fieldname to a list containing the
     names of the localized fields created for the original field.
     """
-    localized_fields = dict()
+    localized_fields = {}
     translation_opts = translator.get_options_for_model(model)
+
     for field_name in translation_opts.fields:
-        localized_fields[field_name] = list()
+        localized_fields[field_name] = []
+
         for lang in FIELD_LANGUAGES:
             # Create a dynamic translation field
             translation_field = create_translation_field(
                 model=model, field_name=field_name, lang=lang)
+
             # Construct the name for the localized field
             localized_field_name = build_localized_fieldname(field_name, lang)
+
             # Check if the model already has a field by that name
             if hasattr(model, localized_field_name):
                 raise ValueError(
                     "Error adding translation field. Model '%s' already "
                     "contains a field named '%s'." % (
                         model._meta.object_name, localized_field_name))
+
             # This approach implements the translation fields as full valid
             # django model fields and therefore adds them via add_to_class
             model.add_to_class(localized_field_name, translation_field)
             localized_fields[field_name].append(localized_field_name)
+
         # Copy the verbose name of the the original field and append a
         # language suffix (will show up e.g. in the admin).
         field = model._meta.get_field(field_name)
         field.verbose_name = build_localized_verbose_name(
             field.verbose_name, mt_settings.DEFAULT_LANGUAGE)
+
     return localized_fields
-
-
-#def translated_model_initialized(field_names, instance, **kwargs):
-    #print "translated_model_initialized instance:", \
-          #instance, ", field:", field_names
-    #for field_name in field_names:
-        #initial_val = getattr(instance, field_name)
-        #print "  field: %s, initialval: %s" % (field_name, initial_val)
-        #setattr(instance.__class__, field_name,
-                #TranslationFieldDescriptor(field_name, initial_val))
-
-
-#def translated_model_initializing(sender, args, kwargs, **signal_kwargs):
-    #print "translated_model_initializing", sender, args, kwargs
-    #trans_opts = translator.get_options_for_model(sender)
-    #for field_name in trans_opts.fields:
-        #setattr(sender, field_name, TranslationFieldDescriptor(field_name))
 
 
 def delete_cache_fields(model):
@@ -104,8 +91,9 @@ def delete_cache_fields(model):
 
 class Translator(object):
     """
-    A Translator object encapsulates an instance of a translator. Models are
-    registered with the Translator using the register() method.
+    A Translator object encapsulates an instance of a translator.
+
+    Models are registered with the Translator using the ``register()`` method.
     """
     def __init__(self):
         # model_class class -> translation_opts instance
@@ -192,14 +180,11 @@ class Translator(object):
             setattr(model, field_name, TranslationFieldDescriptor(
                 field_name, fallback_value=field_fallback_value))
 
-        #signals.pre_init.connect(translated_model_initializing, sender=model,
-                                 #weak=False)
-
     def unregister(self, model_or_iterable):
         """
         Unregisters the given model(s).
 
-        If a model isn't already registered, this will raise NotRegistered.
+        If a model isn't already registered, this will raise ``NotRegistered``.
         """
         if isinstance(model_or_iterable, ModelBase):
             model_or_iterable = [model_or_iterable]
@@ -240,8 +225,8 @@ class Translator(object):
                     'localized_fieldnames_rev': localized_fieldnames_rev
                 }
                 translation_opts = type(
-                    "%sTranslation" % model.__name__,
-                    (TranslationOptions,), options)
+                    "%sTranslation" % model.__name__, (TranslationOptions,),
+                    options)
                 # delete_cache_fields(model)
                 return translation_opts
             raise NotRegistered('The model "%s" is not registered for '
