@@ -14,7 +14,7 @@ def autodiscover():
     from django.utils.importlib import import_module
     from django.utils.module_loading import module_has_submodule
     from modeltranslation.translator import translator
-    from modeltranslation.settings import TRANSLATION_FILES, DEBUG
+    from modeltranslation import settings as mt_settings
 
     for app in settings.INSTALLED_APPS:
         mod = import_module(app)
@@ -35,13 +35,13 @@ def autodiscover():
             if module_has_submodule(mod, 'translation'):
                 raise
 
-    for module in TRANSLATION_FILES:
+    for module in mt_settings.TRANSLATION_FILES:
         import_module(module)
 
     # In debug mode, print a list of registered models and pid to stdout.
     # Note: Differing model order is fine, _registry is just a dict and we
     # don't rely on a particular order.
-    if DEBUG:
+    if mt_settings.DEBUG:
         try:
             if sys.argv[1] in ('runserver', 'runserver_plus'):
                 translated_model_names = ', '.join(
@@ -62,9 +62,9 @@ def handle_translation_registrations(*args, **kwargs):
     This makes it possible for scripts/management commands that affect models
     but know nothing of modeltranslation.
     """
-    from modeltranslation.settings import ENABLE_REGISTRATIONS
+    from modeltranslation import settings as mt_settings
 
-    if not ENABLE_REGISTRATIONS:
+    if not mt_settings.ENABLE_REGISTRATIONS:
         # If the user really wants to disable this, they can, possibly at their
         # own expense. This is generally only required in cases where other
         # apps generate import errors and requires extra work on the user's
