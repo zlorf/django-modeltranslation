@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 from django.db.models import Manager
 from django.db.models.base import ModelBase
+from django.db.models.fields.files import ImageFileDescriptor, FileDescriptor
 
 from modeltranslation import settings as mt_settings
-from modeltranslation.fields import (TranslationFieldDescriptor,
+from modeltranslation.fields import (TranslationDescriptor,
+                                     TranslationFileDescriptor,
+                                     TranslationImageDescriptor,
                                      create_translation_field)
 from modeltranslation.utils import (build_localized_fieldname,
                                     build_localized_verbose_name)
@@ -167,18 +170,30 @@ class Translator(object):
             for related_obj in model._meta.get_all_related_objects():
                 delete_cache_fields(related_obj.model)
 
-        model_fallback_values = getattr(
-            translation_opts, 'fallback_values', None)
-        for field_name in translation_opts.fields:
-            if model_fallback_values is None:
-                field_fallback_value = None
-            elif isinstance(model_fallback_values, dict):
-                field_fallback_value = model_fallback_values.get(
-                    field_name, None)
-            else:
-                field_fallback_value = model_fallback_values
-            setattr(model, field_name, TranslationFieldDescriptor(
-                field_name, fallback_value=field_fallback_value))
+            model_fallback_values = getattr(
+                translation_opts, 'fallback_values', None)
+            for field_name in translation_opts.fields:
+                if model_fallback_values is None:
+                    field_fallback_value = None
+                elif isinstance(model_fallback_values, dict):
+                    field_fallback_value = model_fallback_values.get(
+                        field_name, None)
+                else:
+                    field_fallback_value = model_fallback_values
+
+                # Apply translation field descriptor retaining special
+                # descriptors for file and image fields
+                field = model._meta.get_field(field_name)
+                descriptor_class = getattr(field, 'descriptor_class', None)
+                if descriptor_class is FileDescriptor:
+                    setattr(model, field_name, TranslationFileDescriptor(
+                        field))
+                elif descriptor_class is ImageFileDescriptor:
+                    setattr(model, field_name, TranslationImageDescriptor(
+                        field))
+                else:
+                    setattr(model, field_name, TranslationDescriptor(
+                        field=field, fallback_value=field_fallback_value))
 
     def unregister(self, model_or_iterable):
         """

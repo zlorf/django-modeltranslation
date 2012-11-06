@@ -29,3 +29,5 @@ nosetests.xml
 
 # Sphinx
 _build
+
+modeltranslation/tests/media

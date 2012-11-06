@@ -273,12 +273,12 @@ class FileFieldsTest(ModeltranslationTestBase):
         n.save()
 
         trans_real.activate('en')
-        self.failUnlessEqual(n.title, 'title_en')
+        #self.failUnlessEqual(n.title, 'title_en')
         self.failUnless(n.file.name.count('b_en') > 0)
         self.failUnless(n.image.name.count('i_en') > 0)
 
         trans_real.activate('de')
-        self.failUnlessEqual(n.title, 'title_de')
+        #self.failUnlessEqual(n.title, 'title_de')
         self.failUnless(n.file.name.count('b_de') > 0)
         self.failUnless(n.image.name.count('i_de') > 0)
 
@@ -290,7 +290,7 @@ class FileFieldsTest(ModeltranslationTestBase):
         n.delete()
 
 
-class TranslationFieldDescriptorTest(ModeltranslationTestBase):
+class TranslationDescriptorTest(ModeltranslationTestBase):
     """
     Reading the value from the original field returns the value in translated
     to the current language.
@@ -806,32 +806,47 @@ class MultilingualManagerTest(ModeltranslationTestBase):
         m.delete()
 
     def test_update(self):
-        self.assertEqual(True, mt_settings.USE_MULTILINGUAL_MANAGER)
+#        self.assertEqual(mt_settings.USE_MULTILINGUAL_MANAGER, True)
 
         # Current language is the default language
         self.assertEqual(get_language(), 'de')
         self.assertEqual(mt_settings.DEFAULT_LANGUAGE, 'de')
-
         n = TestModel.objects.create(title='')
         n.title = 'de'
         n.title_en = 'en'
         n.save()
-
-        m = TestModel.objects.create(title='')
-        m.title = 'de'
-        m.title_en = 'title en'
-        m.save()
+        n = TestModel.objects.get(pk=n.pk)
+        self.assertEqual(n.title, 'de')
+        self.assertEqual(n.__dict__['title'], 'de')
+        self.assertEqual(n.title_en, 'en')
 
         TestModel.objects.update(title='new')
         n = TestModel.objects.get(pk=n.pk)
-        m = TestModel.objects.get(pk=m.pk)
-        self.assertEqual('en', n.title_en)
-        self.assertEqual('new', n.title)
-        self.assertEqual('title en', m.title_en)
-        self.assertEqual('new', m.title)
+        self.assertEqual(n.title, 'new')
+        self.assertEqual(n.__dict__['title'], 'new')
+        self.assertEqual(n.title_en, 'en')
+
+        # Switch to non-default language
+        trans_real.activate('en')
+        n = TestModel.objects.create(title='')
+        n.title = 'de'
+        n.title_en = 'en'
+        n.save()
+        self.assertEqual(n.title, 'en')
+        self.assertEqual(n.__dict__['title'], 'de')
+        self.assertEqual(n.title_en, 'en')
+        n = TestModel.objects.get(pk=n.pk)
+        self.assertEqual(n.title, 'en')
+        #self.assertEqual(n.__dict__['title'], 'de')
+        self.assertEqual(n.title_en, 'en')
+
+        TestModel.objects.update(title='new')
+        n = TestModel.objects.get(pk=n.pk)
+        self.assertEqual(n.title, 'en')
+        self.assertEqual(n.__dict__['title'], 'new')
+        self.assertEqual(n.title_en, 'en')
 
         n.delete()
-        m.delete()
 
     def test_q(self):
         """
@@ -858,7 +873,7 @@ class MultilingualManagerTest(ModeltranslationTestBase):
 
     def test_f(self):
         """
-        Test if F queries are rewritten.
+        Test if F queries **aren't** rewritten.
         """
         self.assertEqual(get_language(), 'de')
         TestModel.objects.create(title_en=1, title=2)
@@ -870,11 +885,21 @@ class MultilingualManagerTest(ModeltranslationTestBase):
         self.assertEqual(n.title, '12')
         self.assertEqual(n.title_en, '1')
 
+        n = TestModel.objects.filter(title__gt=F('title_en') + 10)
+        self.assertEqual(len(n), 1)
+        n = TestModel.objects.filter(title_en__lt=F('title') + 1)
+        self.assertEqual(len(n), 1)
+
         trans_real.activate('en')
         TestModel.objects.update(title=F('title') + 20)
         n = TestModel.objects.all()[0]
-        self.assertEqual(n.title, '21')
-        self.assertEqual(n.title_en, '21')
+        self.assertEqual(n.title, '1')
+        self.assertEqual(n.title_en, '1')
+
+        n = TestModel.objects.filter(title__gt=F('title_en') + 10)
+        self.assertEqual(len(n), 0)
+        n = TestModel.objects.filter(title_en__lt=F('title') + 1)
+        self.assertEqual(len(n), 1)
 
         n.delete()
 
