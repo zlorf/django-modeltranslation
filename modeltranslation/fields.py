@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 from django.core.exceptions import ImproperlyConfigured
+from django.core.files.base import File
 from django.db.models.fields import CharField, TextField
-from django.db.models.fields.files import FileField, ImageField
+from django.db.models.fields.files import (FileField, FieldFile, ImageField,
+                                           ImageFileDescriptor, FileDescriptor)
 
 from modeltranslation import settings as mt_settings
 from modeltranslation.utils import (get_language,
@@ -88,15 +90,6 @@ class TranslationField(object):
         self.verbose_name = build_localized_verbose_name(
             translated_field.verbose_name, language)
 
-    def pre_save(self, model_instance, add):
-        val = self.translated_field.__class__.pre_save(
-            self, model_instance, add)
-        if mt_settings.DEFAULT_LANGUAGE == self.language and not add:
-            # Rule is: 3. Assigning a value to a translation field of the
-            # default language also updates the original field
-            model_instance.__dict__[self.translated_field.attname] = val
-        return val
-
     def get_prep_value(self, value):
         if value == '':
             value = None
@@ -110,6 +103,16 @@ class TranslationField(object):
 
     def get_internal_type(self):
         return self.translated_field.get_internal_type()
+
+#    def pre_save(self, model_instance, add):
+#        val = self.translated_field.__class__.pre_save(
+#            self, model_instance, add)
+#        if mt_settings.DEFAULT_LANGUAGE == self.language and not add:
+#        #if mt_settings.DEFAULT_LANGUAGE == get_language() and not add:
+#            # Rule is: 3. Assigning a value to a translation field of the
+#            # default language also updates the original field
+#            model_instance.__dict__[self.translated_field.attname] = val
+#        return val
 
     def south_field_triple(self):
         """
@@ -133,46 +136,128 @@ class TranslationField(object):
         return super(TranslationField, self).formfield(*args, **defaults)
 
 
-class TranslationFieldDescriptor(object):
+class TranslationDescriptor(object):
     """
     A descriptor used for the original translated field.
     """
-    def __init__(self, name, initial_val='', fallback_value=None):
+    def __init__(self, field, initial_val='', fallback_value=None):
         """
         The ``name`` is the name of the field (which is not available in the
         descriptor by default - this is Python behaviour).
         """
-        self.name = name
+        self.field = field
+        #self.name = field.name
         self.val = initial_val
         self.fallback_value = fallback_value
 
     def __set__(self, instance, value):
-        lang = get_language()
-        loc_field_name = build_localized_fieldname(self.name, lang)
-        # also update the translation field of the current language
-        setattr(instance, loc_field_name, value)
-        # update the original field via the __dict__ to prevent calling the
-        # descriptor
-        instance.__dict__[self.name] = value
+        loc_field_name = build_localized_fieldname(
+            self.field.name, get_language())
+#        loc_field_name = build_localized_fieldname(
+#            self.field.name, mt_settings.DEFAULT_LANGUAGE)
 
-    def __get__(self, instance, owner):
-        if not instance:
+        # Update the translation field of the current language
+        setattr(instance, loc_field_name, value)
+
+        # Update original field via __dict__ to prevent calling the descriptor
+        instance.__dict__[self.field.name] = value
+
+    def __get__(self, instance=None, owner=None):
+        if instance is None:
             raise ValueError(
                 "Translation field '%s' can only be accessed via an instance "
-                "not via a class." % self.name)
+                "not via a class." % self.field.name)
+
         loc_field_name = build_localized_fieldname(
-            self.name, get_language())
+            self.field.name, get_language())
         if hasattr(instance, loc_field_name):
             if getattr(instance, loc_field_name):
                 return getattr(instance, loc_field_name)
             elif self.fallback_value is None:
-                return self.get_default_instance(instance)
+                return instance.__dict__[self.field.name]
             else:
                 return self.fallback_value
 
-    def get_default_instance(self, instance):
-        """
-        Returns default instance of the field. Supposed to be overidden by
-        related subclasses.
-        """
-        return instance.__dict__[self.name]
+
+class TranslationFileDescriptor(FileDescriptor):
+    """
+    The descriptor for the file attribute on the model instance. Returns a
+    FieldFile when accessed so you can do stuff like::
+
+        >>> instance.file.size
+
+    Assigns a file object on assignment so you can do::
+
+        >>> instance.file = File(...)
+
+    Essentially a copy of Django's own FileDescriptor modified to be aware of
+    the current language.
+
+    TODO: Handle fallback values
+    """
+    def __get__(self, instance=None, owner=None):
+        if instance is None:
+            raise AttributeError(
+                "The '%s' attribute can only be accessed from %s instances."
+                % (self.field.name, owner.__name__))
+
+        # This is slightly complicated, so worth an explanation.
+        # instance.file`needs to ultimately return some instance of `File`,
+        # probably a subclass. Additionally, this returned object needs to have
+        # the FieldFile API so that users can easily do things like
+        # instance.file.path and have that delegated to the file storage
+        # engine.
+        # Easy enough if we're strict about assignment in __set__, but if you
+        # peek below you can see that we're not. So depending on the current
+        # value of the field we have to dynamically construct some sort of
+        # "thing" to return.
+
+        field_name = build_localized_fieldname(self.field.name, get_language())
+#        field_name = build_localized_fieldname(
+#            self.field.name, mt_settings.DEFAULT_LANGUAGE)
+
+        # The instance dict contains whatever was originally assigned
+        # in __set__.
+        file = instance.__dict__[field_name]
+
+        # If this value is a string (instance.file = "path/to/file") or None
+        # then we simply wrap it with the appropriate attribute class according
+        # to the file field. [This is FieldFile for FileFields and
+        # ImageFieldFile for ImageFields; it's also conceivable that user
+        # subclasses might also want to subclass the attribute class]. This
+        # object understands how to convert a path to a file, and also how to
+        # handle None.
+        if isinstance(file, basestring) or file is None:
+            attr = self.field.attr_class(instance, self.field, file)
+            instance.__dict__[field_name] = attr
+
+        # Other types of files may be assigned as well, but they need to have
+        # the FieldFile interface added to the. Thus, we wrap any other type of
+        # File inside a FieldFile (well, the field's attr_class, which is
+        # usually FieldFile).
+        elif isinstance(file, File) and not isinstance(file, FieldFile):
+            file_copy = self.field.attr_class(instance, self.field, file.name)
+            file_copy.file = file
+            file_copy._committed = False
+            instance.__dict__[field_name] = file_copy
+
+        # Finally, because of the (some would say boneheaded) way pickle works,
+        # the underlying FieldFile might not actually itself have an associated
+        # file. So we need to reset the details of the FieldFile in those
+        # cases.
+        elif isinstance(file, FieldFile) and not hasattr(file, 'field'):
+            file.instance = instance
+            file.field = self.field
+            file.storage = self.field.storage
+
+        # That was fun, wasn't it?
+        return instance.__dict__[field_name]
+
+
+class TranslationImageDescriptor(TranslationFileDescriptor,
+                                 ImageFileDescriptor):
+    """
+    Django's original ``ImageDescriptor`` only overrides ``__set__``, so we
+    just inherit here, no additional work required.
+    """
+    pass

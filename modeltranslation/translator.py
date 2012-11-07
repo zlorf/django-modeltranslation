@@ -1,10 +1,16 @@
 # -*- coding: utf-8 -*-
 from django.conf import settings
 from django.db.models.base import ModelBase
+from django.db.models.fields.files import ImageFileDescriptor, FileDescriptor
+from django.db.models.signals import pre_save, post_save
+from django.utils import translation
 
-from modeltranslation.fields import (TranslationFieldDescriptor,
+from modeltranslation import settings as mt_settings
+from modeltranslation.fields import (TranslationDescriptor,
+                                     TranslationFileDescriptor,
+                                     TranslationImageDescriptor,
                                      create_translation_field)
-from modeltranslation.utils import build_localized_fieldname
+from modeltranslation.utils import build_localized_fieldname, get_language
 
 
 class AlreadyRegistered(Exception):
@@ -58,6 +64,7 @@ def add_localized_fields(model):
             # django model fields and therefore adds them via add_to_class
             model.add_to_class(localized_field_name, translation_field)
             localized_fields[field_name].append(localized_field_name)
+
     return localized_fields
 
 
@@ -120,6 +127,9 @@ class Translator(object):
                 raise AlreadyRegistered('The model %s is already registered '
                                         'for translation' % model.__name__)
 
+            pre_save.connect(pre_save_fix_handler, sender=model)
+            post_save.connect(post_save_fix_handler, sender=model)
+
             # If we got **options then dynamically construct a subclass of
             # translation_opts with those **options.
             if options:
@@ -152,18 +162,30 @@ class Translator(object):
             for related_obj in model._meta.get_all_related_objects():
                 delete_cache_fields(related_obj.model)
 
-        model_fallback_values = getattr(
-            translation_opts, 'fallback_values', None)
-        for field_name in translation_opts.fields:
-            if model_fallback_values is None:
-                field_fallback_value = None
-            elif isinstance(model_fallback_values, dict):
-                field_fallback_value = model_fallback_values.get(
-                    field_name, None)
-            else:
-                field_fallback_value = model_fallback_values
-            setattr(model, field_name, TranslationFieldDescriptor(
-                field_name, fallback_value=field_fallback_value))
+            model_fallback_values = getattr(
+                translation_opts, 'fallback_values', None)
+            for field_name in translation_opts.fields:
+                if model_fallback_values is None:
+                    field_fallback_value = None
+                elif isinstance(model_fallback_values, dict):
+                    field_fallback_value = model_fallback_values.get(
+                        field_name, None)
+                else:
+                    field_fallback_value = model_fallback_values
+
+                # Apply translation field descriptor retaining special
+                # descriptors for file and image fields
+                field = model._meta.get_field(field_name)
+                descriptor_class = getattr(field, 'descriptor_class', None)
+                if descriptor_class is FileDescriptor:
+                    setattr(model, field_name, TranslationFileDescriptor(
+                        field=field))
+                elif descriptor_class is ImageFileDescriptor:
+                    setattr(model, field_name, TranslationImageDescriptor(
+                        field=field))
+                else:
+                    setattr(model, field_name, TranslationDescriptor(
+                        field=field, fallback_value=field_fallback_value))
 
         #signals.pre_init.connect(translated_model_initializing, sender=model,
                                  #weak=False)
@@ -219,6 +241,38 @@ class Translator(object):
                 return translation_opts
             raise NotRegistered('The model "%s" is not registered for '
                                 'translation' % model.__name__)
+
+
+def pre_save_fix_handler(sender, **kwargs):
+    instance = kwargs['instance']
+
+    # Force default language on save. See issue #33 for details.
+    setattr(instance, '_current_lang', get_language())
+    translation.activate(mt_settings.DEFAULT_LANGUAGE)
+
+#    if mt_settings.DEFAULT_LANGUAGE == self.language and not add:
+#    #if mt_settings.DEFAULT_LANGUAGE == get_language() and not add:
+#        # Rule is: 3. Assigning a value to a translation field of the
+#        # default language also updates the original field
+#        model_instance.__dict__[self.translated_field.attname] = val
+#    return val
+
+#    for orig_fieldname in translator.get_options_for_model(
+#            sender).localized_fieldnames.keys():
+#        if hasattr(instance, orig_fieldname):
+#            default_lang_fieldname = build_localized_fieldname(
+#                orig_fieldname, mt_settings.DEFAULT_LANGUAGE)
+#            if not getattr(instance, default_lang_fieldname):
+#                field = sender._meta.get_field(orig_fieldname)
+#                if field.null:
+#                    setattr(instance, orig_fieldname, None)
+#                else:
+#                    setattr(instance, orig_fieldname, '')
+
+
+def post_save_fix_handler(sender, **kwargs):
+    instance = kwargs['instance']
+    translation.activate(instance._current_lang)
 
 
 # This global object represents the singleton translator object

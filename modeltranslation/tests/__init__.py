@@ -112,37 +112,33 @@ class ModeltranslationTest(ModeltranslationTestBase):
         inst.delete()
 
     def test_verbose_name(self):
-        inst = TestModel.objects.create(title="Testtitle", text="Testtext")
+        inst = TestModel.objects.create(title='Testtitle', text='Testtext')
         self.assertEquals(unicode(
             inst._meta.get_field('title_de').verbose_name), u'title [de]')
         inst.delete()
 
     def test_set_translation(self):
         self.failUnlessEqual(get_language(), 'de')
-        # First create an instance of the test model to play with
-        title1_de = "title de"
-        title1_en = "title en"
-        title2_de = "title2 de"
-        inst1 = TestModel(title_en=title1_en, text="Testtext")
-        inst1.title = title1_de
-        inst2 = TestModel(title=title2_de, text="Testtext")
-        inst1.save()
-        inst2.save()
 
-        self.failUnlessEqual(inst1.title, title1_de)
-        self.failUnlessEqual(inst1.title_en, title1_en)
+        n = TestModel(title_en='title en', text="Testtext")
+        n.title = 'title de'
+        n.save()
+        self.failUnlessEqual(n.title, 'title de')
+        self.failUnlessEqual(n.title_en, 'title en')
 
-        self.failUnlessEqual(inst2.title, title2_de)
-        self.failUnlessEqual(inst2.title_en, None)
+        m = TestModel(title='title2 de', text="Testtext")
+        m.save()
+        self.failUnlessEqual(m.title, 'title2 de')
+        self.failUnlessEqual(m.title_en, None)
 
-        del inst1
-        del inst2
+        del n
+        del m
 
         # Check that the translation fields are correctly saved and provide the
         # correct value when retrieving them again.
-        n = TestModel.objects.get(title=title1_de)
-        self.failUnlessEqual(n.title, title1_de)
-        self.failUnlessEqual(n.title_en, title1_en)
+        n = TestModel.objects.get(title='title de')
+        self.failUnlessEqual(n.title, 'title de')
+        self.failUnlessEqual(n.title_en, 'title en')
 
     def test_titleonly(self):
         title1_de = "title de"
@@ -402,30 +398,57 @@ class ModeltranslationTestRule2(ModeltranslationTestBase):
         Basic CharField/TextField test.
         Could as well call _test_field, just kept for reference.
         """
+        # First test in the default language (de)
+
         self.failUnlessEqual(get_language(), 'de')
-        title1_de = "title de"
-        title1_en = "title en"
-        n = TestModel.objects.create(title_de=title1_de, title_en=title1_en)
-        self.failUnlessEqual(n.title, title1_de)
-        self.failUnlessEqual(n.title_de, title1_de)
-        self.failUnlessEqual(n.title_en, title1_en)
+        n = TestModel.objects.create(title_de='title de', title_en='title en')
+        self.failUnlessEqual(n.title, 'title de')
+        # At this point we expect the original field to be empty because it
+        # hasn't been saved yet.
+        self.failUnlessEqual(n.__dict__['title'], '')
+        self.failUnlessEqual(n.title_de, 'title de')
+        self.failUnlessEqual(n.title_en, 'title en')
 
-        title2 = "Neuer Titel"
-        n.title = title2
+        n.title = 'Neuer Titel'
         n.save()
-        self.failUnlessEqual(n.title, title2)
-        self.failUnlessEqual(n.title, n.title_de)
+        # Now that we have saved, we expect the values to be in sync.
+        self.failUnlessEqual(n.title, 'Neuer Titel')
+        self.failUnlessEqual(n.__dict__['title'], 'Neuer Titel')
+        self.failUnlessEqual(n.title_de, 'Neuer Titel')
+        self.failUnlessEqual(n.title_en, 'title en')
 
-        trans_real.activate("en")
-        self.failUnlessEqual(get_language(), "en")
-        title3 = "new title"
+        n.delete()
 
-        n.title = title3
-        n.title_de = title1_de
+        # Now the same in a non-default language (en)
+
+        trans_real.activate('en')
+        self.failUnlessEqual(get_language(), 'en')
+
+        n = TestModel.objects.create(title_de='title de', title_en='title en')
+        # At this point we expect the original field to be empty because it
+        # hasn't been saved yet.
+        self.failUnlessEqual(n.title, 'title en')
+        self.failUnlessEqual(n.__dict__['title'], '')
+        self.failUnlessEqual(n.title_de, 'title de')
+        self.failUnlessEqual(n.title_en, 'title en')
+
+        n.title = 'new title'
         n.save()
-        self.failUnlessEqual(n.title, title3)
-        self.failUnlessEqual(n.title, n.title_en)
-        self.failUnlessEqual(title1_de, n.title_de)
+        # Now that we have saved, we expect the values of the original field,
+        # the english field and the value returned by the descriptor to be in
+        # sync.
+        self.failUnlessEqual(n.title, 'new title')
+        self.failUnlessEqual(n.__dict__['title'], 'new title')
+        self.failUnlessEqual(n.title_de, 'title de')
+        self.failUnlessEqual(n.title_en, 'new title')
+
+        n.title = 'new title'
+        n.title_de = 'title de'
+        n.save()
+        self.failUnlessEqual(n.title, 'new title')
+        self.failUnlessEqual(n.__dict__['title'], 'new title')
+        self.failUnlessEqual(n.title_de, 'title de')
+        self.failUnlessEqual(n.title_en, 'new title')
 
         trans_real.deactivate()
 
@@ -484,20 +507,31 @@ class ModeltranslationTestRule3(ModeltranslationTestBase):
         Basic CharField/TextField test.
         Could as well call _test_field, just kept for reference.
         """
-        title1_de = "title de"
-        title1_en = "title en"
-        n = TestModel.objects.create(title_de=title1_de, title_en=title1_en)
         self.failUnlessEqual(get_language(), 'de')
         self.failUnlessEqual(mt_settings.DEFAULT_LANGUAGE, 'de')
-        self.failUnlessEqual(n.title, title1_de)
-        self.failUnlessEqual(n.title_de, title1_de)
-        self.failUnlessEqual(n.title_en, title1_en)
 
-        n.title_de = "Neuer Titel"
+        n = TestModel.objects.create(title_de='title de', title_en='title en')
+        # At this point we expect the original field to be empty because it
+        # hasn't been saved yet.
+        self.failUnlessEqual(n.title, 'title de')
+        self.failUnlessEqual(n.__dict__['title'], '')
+        self.failUnlessEqual(n.title_de, 'title de')
+        self.failUnlessEqual(n.title_en, 'title en')
+
+        # ... now save
         n.save()
+        self.failUnlessEqual(n.title, 'title de')
+        #self.failUnlessEqual(n.__dict__['title'], '')
+        self.failUnlessEqual(n.title_de, 'title de')
+        self.failUnlessEqual(n.title_en, 'title en')
+
+        n.title_de = 'Neuer Titel'
+        n.save()
+
         # We expect that the original field holds the same value as the german
         # one (german is the default language).
-        self.failUnlessEqual(n.title, n.title_de)
+        self.failUnlessEqual(n.title, 'Neuer Titel')
+        #self.failUnlessEqual(n.__dict__['title'], 'Neuer Titel')
 
         # Fetch the updated object and verify all fields
         updated_obj = TestModel.objects.get(id=n.id)
@@ -506,8 +540,8 @@ class ModeltranslationTestRule3(ModeltranslationTestBase):
         self.failUnlessEqual(updated_obj.title_en, 'title en')
 
         # Now switch to "en"
-        trans_real.activate("en")
-        self.failUnlessEqual(get_language(), "en")
+        trans_real.activate('en')
+        self.failUnlessEqual(get_language(), 'en')
         n.title_en = "New title"
         # the n.title field is not updated before the instance is saved
         n.save()
@@ -520,14 +554,15 @@ class ModeltranslationTestRule3(ModeltranslationTestBase):
         # original field is set to value of the current language's field.
         # See issue 33 for details.
 
-        # TODO: Reactivate, temporarily deactivated for a full run of travis ci
-        #self.failUnlessEqual(n.title, n.title_de)
+        self.failUnlessEqual(n.title, 'New title')
+        #self.failUnlessEqual(n.__dict__['title'], 'Neuer Titel')
 
         # Fetch the updated object and verify all fields
-        #updated_obj = TestModel.objects.get(id=n.id)
-        #self.failUnlessEqual(updated_obj.title, 'Neuer Titel')
-        #self.failUnlessEqual(updated_obj.title_de, 'Neuer Titel')
-        #self.failUnlessEqual(updated_obj.title_en, 'New title')
+        updated_obj = TestModel.objects.get(id=n.id)
+        self.failUnlessEqual(updated_obj.title, 'New title')
+        #self.failUnlessEqual(updated_obj.__dict__['title'], 'New title')
+        self.failUnlessEqual(updated_obj.title_de, 'Neuer Titel')
+        self.failUnlessEqual(updated_obj.title_en, 'New title')
 
         trans_real.deactivate()
 
@@ -544,6 +579,51 @@ class ModeltranslationTestRule3(ModeltranslationTestBase):
                          value1_en='django-modeltranslation@googlecode.com',
                          value2='django-modeltranslation@googlecode.at',
                          value3='django-modeltranslation@googlecode.co.uk')
+
+    def test_clear_field(self):
+        self.failUnlessEqual(get_language(), 'de')
+        self.failUnlessEqual(mt_settings.DEFAULT_LANGUAGE, 'de')
+
+        # First set a value for the
+        n = TestModel()
+        n.title = 'title de'
+        n.save()
+        n = TestModel.objects.get(id=n.id)
+        self.failUnlessEqual(n.title, 'title de')
+        self.failUnlessEqual(n.__dict__['title'], 'title de')
+        self.failUnlessEqual(n.title_de, 'title de')
+        self.failUnlessEqual(n.title_en, None)
+
+        # Now clear the field of the default language
+        n.title_de = ''
+        n.save()
+        # We expect that the original field is also cleared
+        self.failUnlessEqual(n.title_en, None)
+        self.failUnlessEqual(n.title_de, '')
+        self.failUnlessEqual(n.__dict__['title'], '')
+        self.failUnlessEqual(n.title, '')
+
+    def test_clear_nullable_field(self):
+        self.failUnlessEqual(get_language(), 'de')
+        self.failUnlessEqual(mt_settings.DEFAULT_LANGUAGE, 'de')
+
+        # First set a value for the
+        n = TestModel()
+        n.text = 'text de'
+        n.save()
+        self.failUnlessEqual(n.text, 'text de')
+        self.failUnlessEqual(n.__dict__['text'], 'text de')
+        self.failUnlessEqual(n.text_de, 'text de')
+        self.failUnlessEqual(n.text_en, None)
+
+        # Now clear the field of the default language
+        n.text_de = None
+        n.save()
+        # We expect that the original field is also cleared
+        self.failUnlessEqual(n.text_en, None)
+        self.failUnlessEqual(n.text_de, None)
+        self.failUnlessEqual(n.__dict__['text'], None)
+        self.failUnlessEqual(n.text, None)
 
 
 class ModeltranslationTestRule4(ModeltranslationTestBase):
