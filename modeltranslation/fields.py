@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from django.core.exceptions import ImproperlyConfigured
 from django.db.models import fields
-from django.db.models.fields.files import FileField, ImageField
 
 from modeltranslation import settings as mt_settings
 from modeltranslation.utils import (get_language,
@@ -18,8 +17,10 @@ SUPPORTED_FIELDS = (
     fields.SmallIntegerField,
     fields.PositiveIntegerField,
     fields.PositiveSmallIntegerField,
-    FileField,
-    ImageField,
+    fields.BooleanField,
+    fields.NullBooleanField,
+    fields.files.FileField,
+    fields.files.ImageField,
 )
 
 
@@ -49,6 +50,10 @@ def create_translation_field(model, field_name, lang):
 def field_factory(baseclass):
     class TranslationFieldSpecific(TranslationField, baseclass):
         pass
+
+    # Reflect baseclass name of returned subclass
+    TranslationFieldSpecific.__name__ = 'Translation%s' % baseclass.__name__
+
     return TranslationFieldSpecific
 
 
@@ -74,19 +79,18 @@ class TranslationField(object):
         # Update the dict of this field with the content of the original one
         # This might be a bit radical?! Seems to work though...
         self.__dict__.update(translated_field.__dict__)
-        self._post_init(translated_field, language)
 
-    def _post_init(self, translated_field, language):
-        """
-        Common init for subclasses of TranslationField.
-        """
         # Store the originally wrapped field for later
         self.translated_field = translated_field
         self.language = language
 
         # Translation are always optional (for now - maybe add some parameters
         # to the translation options for configuring this)
-        self.null = True
+
+        if not isinstance(self, fields.BooleanField):
+            # TODO: Do we really want to enforce null *at all*? Shouldn't this
+            # better honour the null setting of the translated field?
+            self.null = True
         self.blank = True
 
         # Adjust the name of this field to reflect the language
@@ -99,25 +103,6 @@ class TranslationField(object):
         self.verbose_name = build_localized_verbose_name(
             translated_field.verbose_name, language)
 
-    def pre_save(self, model_instance, add):
-        val = self.translated_field.__class__.pre_save(
-            self, model_instance, add)
-        return val
-
-    def get_prep_value(self, value):
-        if value == '':
-            value = None
-        return self.translated_field.get_prep_value(value)
-
-    def get_prep_lookup(self, lookup_type, value):
-        return self.translated_field.get_prep_lookup(lookup_type, value)
-
-    def to_python(self, value):
-        return self.translated_field.to_python(value)
-
-    def get_internal_type(self):
-        return self.translated_field.get_internal_type()
-
     def south_field_triple(self):
         """
         Returns a suitable description of this field for South.
@@ -129,15 +114,6 @@ class TranslationField(object):
         args, kwargs = introspector(self)
         # That's our definition!
         return (field_class, args, kwargs)
-
-    def formfield(self, *args, **kwargs):
-        """
-        Preserves the widget of the translated field.
-        """
-        trans_formfield = self.translated_field.formfield(*args, **kwargs)
-        defaults = {'widget': type(trans_formfield.widget)}
-        defaults.update(kwargs)
-        return super(TranslationField, self).formfield(*args, **defaults)
 
 
 class TranslationFieldDescriptor(object):
