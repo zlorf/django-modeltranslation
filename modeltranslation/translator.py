@@ -4,7 +4,7 @@ from django.db.models import Manager
 from django.db.models.base import ModelBase
 
 from modeltranslation.fields import (TranslationFieldDescriptor,
-                                     create_translation_field)
+                                     create_translation_field, original_field_factory)
 from modeltranslation.manager import MultilingualManager, rewrite_lookup_key
 from modeltranslation.utils import build_localized_fieldname, unique
 
@@ -79,6 +79,10 @@ def add_localized_fields(model):
             # django model fields and therefore adds them via add_to_class
             model.add_to_class(localized_field_name, translation_field)
             localized_fields[field_name].append(localized_field_name)
+        # Also patch original field
+        original = model._meta.get_field(field_name)
+        new = original_field_factory(original.__class__)
+        original.__class__ = new
     return localized_fields
 
 
@@ -107,13 +111,18 @@ def patch_constructor(model):
     Monkey patches the original model to rewrite fields names in __init__
     """
     old_init = model.__init__
+    model._creating = False
 
     def new_init(self, *args, **kwargs):
         for key, val in kwargs.items():
             new_key = rewrite_lookup_key(model, key)
             # Old key is intentionally left in case old_init wants to play with it
             kwargs.setdefault(new_key, val)
-        old_init(self, *args, **kwargs)
+        self._creating = True
+        try:
+            old_init(self, *args, **kwargs)
+        finally:
+            self._creating = False
     model.__init__ = new_init
 
 

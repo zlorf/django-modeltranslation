@@ -57,6 +57,22 @@ def create_translation_field(model, field_name, lang):
     return translation_class(translated_field=field, language=lang)
 
 
+def original_field_factory(baseclass):
+    class OriginalTranslationFieldSpecific(OriginalTranslationField, baseclass):
+        pass
+
+    # Reflect baseclass name of returned subclass
+    OriginalTranslationFieldSpecific.__name__ = 'OriginalTranslation%s' % baseclass.__name__
+
+    return OriginalTranslationFieldSpecific
+
+
+class OriginalTranslationField(object):
+    def pre_save(self, model_instance, add):
+        value = super(OriginalTranslationField, self).pre_save(model_instance, add)
+        return model_instance.__dict__.get(self.attname, value)
+
+
 def field_factory(baseclass):
     class TranslationFieldSpecific(TranslationField, baseclass):
         pass
@@ -129,7 +145,7 @@ class TranslationField(object):
                                  self.translated_field.__class__.__name__)
         args, kwargs = introspector(self)
         # That's our definition!
-        return (field_class, args, kwargs)
+        return field_class, args, kwargs
 
 
 class TranslationFieldDescriptor(object):
@@ -150,6 +166,9 @@ class TranslationFieldDescriptor(object):
         loc_field_name = build_localized_fieldname(self.field.name, lang)
         # also update the translation field of the current language
         setattr(instance, loc_field_name, value)
+        # If initializing the instance, store original value
+        if instance._creating:
+            instance.__dict__[self.field.attname] = value
 
     def __get__(self, instance, owner):
         if not instance:

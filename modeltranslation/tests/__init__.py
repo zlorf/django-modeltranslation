@@ -1179,6 +1179,39 @@ class UpdateCommandTest(ModeltranslationTestBase):
         self.assertEqual('initial', obj1.title_de)
         self.assertEqual('already', obj2.title_de)
 
+    def assertOriginal(self, pk):
+        obj = models.TestModel.objects.filter(pk=pk).values()[0]
+        self.assertEqual('initial', obj['title'])
+
+    def test_original_field_preservation(self):
+        """
+        Test if operations on model does not mess with original field value -
+        that's it: original field value is preserved in database and can be used for
+        eg. update_translation_fields command.
+        """
+        pk = models.TestModel.objects.create().pk
+        models.TestModel.objects.all().rewrite(False).update(title='initial')
+
+        self.assertOriginal(pk)
+
+        obj = models.TestModel.objects.get(pk=pk)
+        obj.save()
+        self.assertOriginal(pk)
+
+        obj.title_de = 'a'
+        obj.title_en = 'b'
+        obj.save()
+        self.assertOriginal(pk)
+
+        obj.title = 'c'
+        obj.save()
+        self.assertOriginal(pk)
+
+        models.TestModel.objects.update(title='d')
+        self.assertOriginal(pk)
+
+        # TODO: admin test
+
 
 class TranslationAdminTest(ModeltranslationTestBase):
     def setUp(self):
